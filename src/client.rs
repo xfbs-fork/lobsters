@@ -69,7 +69,6 @@ impl Client {
         Ok(Client { http })
     }
 
-    // FIXME: Return the unauthenticated client back?
     /// Attempt to authenticate with the server
     pub fn login(
         &self,
@@ -83,7 +82,7 @@ impl Client {
             let params = [("email", username_or_email), ("password", password)];
 
             client
-                .post_unauthenticated("login", params, token)
+                .post("login", params, token)
                 .and_then(|res| {
                     eprintln!("{:?}", res.status());
                     res.into_body().concat2().map_err(Error::from)
@@ -164,7 +163,7 @@ impl Client {
         let client = self.http.clone();
         let comment = move |token| {
             client
-                .post_unauthenticated("comments", comment, token)
+                .post("comments", comment, token)
                 .and_then(|res| {
                     let location = res
                         .headers()
@@ -217,7 +216,7 @@ impl Client {
 }
 
 impl HttpClient {
-    fn post_unauthenticated<B>(
+    fn post<B>(
         &self,
         path: &str,
         body: B,
