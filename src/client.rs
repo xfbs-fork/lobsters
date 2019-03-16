@@ -228,17 +228,6 @@ impl HttpClient {
         let request_url = self.base_url.join(path);
         let client = self.reqwest.clone();
 
-        // This reports a recursion limit error that isn't fixed by increasing the limit ¯\_(ツ)_/¯
-        // futures::future::ok(self.reqwest.clone())
-        //     .and_then(|client| request_url.map(|url| (url, client)).map_err(Error::from))
-        //     .and_then(move |(url, client)| {
-        //         eprintln!("POST {}", url.as_str());
-        //         client.post(url.as_str())
-        //             .form(&body)
-        //             .send()
-        //             .map_err(Error::from)
-        //     })
-
         let cookie_set: Arc<Mutex<_>> = self.cookies.clone();
         let cookie_get: Arc<Mutex<_>> = self.cookies.clone();
         request_url
@@ -247,23 +236,10 @@ impl HttpClient {
             .and_then(move |url| {
                 eprintln!("POST {}", url.as_str());
 
-                // Add cookies to request
-                let store = cookie_get.lock().unwrap();
-                let cookies = store.matches(&url);
-                let cookie_headers =
-                    cookies
-                        .iter()
-                        .fold(HeaderMap::new(), |mut headers, cookie| {
-                            // NOTE(unwrap): Assumed to be safe since it was valid when put into the store
-                            headers.append(COOKIE, cookie.encoded().to_string().parse().unwrap());
-                            headers
-                        });
-                dbg!(&cookie_headers);
-
                 client
                     .post(url.as_str())
                     .header("X-CSRF-Token", csrf_token)
-                    .headers(cookie_headers)
+                    .headers(Self::cookie_headers(cookie_get, &url))
                     .form(&body)
                     .send()
                     .map_err(Error::from)
@@ -293,22 +269,9 @@ impl HttpClient {
             .and_then(move |url| {
                 eprintln!("GET {}", url.as_str());
 
-                // Add cookies to request
-                let store = cookie_get.lock().unwrap();
-                let cookies = store.matches(&url);
-                let cookie_headers =
-                    cookies
-                        .iter()
-                        .fold(HeaderMap::new(), |mut headers, cookie| {
-                            // NOTE(unwrap): Assumed to be safe since it was valid when put into the store
-                            headers.append(COOKIE, cookie.encoded().to_string().parse().unwrap());
-                            headers
-                        });
-                dbg!(&cookie_headers);
-
                 client
                     .get(url.as_str())
-                    .headers(cookie_headers)
+                    .headers(Self::cookie_headers(cookie_get, &url))
                     .send()
                     .map_err(Error::from)
             })
@@ -334,23 +297,10 @@ impl HttpClient {
             .map_err(Error::from)
             .into_future()
             .and_then(move |url| {
-                // Add cookies to request
-                let store = cookie_get.lock().unwrap();
-                let cookies = store.matches(&url);
-                let cookie_headers =
-                    cookies
-                        .iter()
-                        .fold(HeaderMap::new(), |mut headers, cookie| {
-                            // NOTE(unwrap): Assumed to be safe since it was valid when put into the store
-                            headers.append(COOKIE, cookie.encoded().to_string().parse().unwrap());
-                            headers
-                        });
-                dbg!(&cookie_headers);
-
                 client
                     .get(url.as_str())
                     .header(ACCEPT, "application/json")
-                    .headers(cookie_headers)
+                    .headers(Self::cookie_headers(cookie_get, &url))
                     .send()
                     .map_err(Error::from)
             })
@@ -363,6 +313,20 @@ impl HttpClient {
 
                 res
             })
+    }
+
+    fn cookie_headers(cookies: Arc<Mutex<CookieStore>>, url: &Url) -> HeaderMap {
+        // Add cookies to request
+        let store = cookies.lock().unwrap();
+        let cookies = store.matches(url);
+
+        cookies
+        .iter()
+        .fold(HeaderMap::new(), |mut headers, cookie| {
+            // NOTE(unwrap): Assumed to be safe since it was valid when put into the store
+            headers.append(COOKIE, cookie.encoded().to_string().parse().unwrap());
+            headers
+        })
     }
 }
 
