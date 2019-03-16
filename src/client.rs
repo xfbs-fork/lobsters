@@ -1,3 +1,5 @@
+//! Lobsters client
+
 mod http_client;
 
 use std::fs::{self, DirBuilder, File};

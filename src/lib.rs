@@ -31,9 +31,9 @@
 //!
 //! This project is dual licenced under:
 //!
-//! - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) **or**
-//!   http://www.apache.org/licenses/LICENSE-2.0)
-//! - MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+//! - Apache License, Version 2.0 ([LICENSE-APACHE](https://git.sr.ht/~wezm/lobsters/tree/master/LICENSE-APACHE) **or**
+//!   <http://www.apache.org/licenses/LICENSE-2.0>)
+//! - MIT license ([LICENSE-MIT](https://git.sr.ht/~wezm/lobsters/tree/master/LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 //!
 //! [Lobsters]: https://lobste.rs/
 
@@ -41,7 +41,8 @@ pub mod client;
 pub mod error;
 pub mod models;
 
-/// URL of lobste.rs
-///
-/// Useful as `base_url` to `Client`
+pub use client::Client;
+pub use error::Error;
+
+/// URL of lobste.rs. Useful as `base_url` to `Client`
 pub const URL: &str = "https://lobste.rs/";

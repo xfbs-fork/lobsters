@@ -1,3 +1,5 @@
+//! Data structures for Lobsters models
+
 #![allow(missing_docs)]
 
 use serde::{Deserialize, Serialize};
