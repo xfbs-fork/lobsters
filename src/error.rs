@@ -1,9 +1,14 @@
+use std::io;
+
 #[derive(Debug)]
 pub enum Error {
     Http(reqwest::Error),
-    Url(url::ParseError),
-    Login(LoginError),
     InvalidStr,
+    Io(io::Error),
+    Login(LoginError),
+    Url(url::ParseError),
+    HomeNotFound,
+    CookieStore,
 }
 
 #[derive(Debug)]
@@ -21,5 +26,11 @@ impl From<reqwest::Error> for Error {
 impl From<url::ParseError> for Error {
     fn from(error: url::ParseError) -> Self {
         Error::Url(error)
+    }
+}
+
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Self {
+        Error::Io(err)
     }
 }

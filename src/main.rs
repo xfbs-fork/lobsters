@@ -20,4 +20,6 @@ fn main() {
 
     let work = client.login(username, password);
     let client = rt.block_on(work).expect("error logging in");
+
+    client.save_cookies().expect("unable to save cookies");
 }
