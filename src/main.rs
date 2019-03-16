@@ -3,10 +3,7 @@ use std::env;
 use futures::future::{Future, IntoFuture};
 use url::Url;
 
-use lobsters::{
-    client::{AuthenticatedClient, UnauthenticatedClient},
-    error::Error,
-};
+use lobsters::client::{AuthenticatedClient, UnauthenticatedClient};
 
 fn main() {
     let username = env::var("LOBSTERS_USER").expect("LOBSTERS_USER must be set");
@@ -26,6 +23,13 @@ fn main() {
             client.login(username, password)
         });
     let client = rt.block_on(work).expect("error logging in");
+
+    client.save_cookies().expect("unable to save cookies");
+
+    let work = client.index(None);
+    let stories = rt.block_on(work).expect("error fetching stories");
+
+    dbg!(&stories);
 
     client.save_cookies().expect("unable to save cookies");
 }

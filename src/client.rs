@@ -7,12 +7,13 @@ use std::sync::{Arc, Mutex};
 use cookie_store::CookieStore;
 use directories::ProjectDirs;
 use futures::{Future, IntoFuture, Stream};
-use reqwest::header::SET_COOKIE;
+use reqwest::header::{ACCEPT, SET_COOKIE};
 use reqwest::r#async::{Client as ReqwestClient, ClientBuilder, Response};
 use serde::Serialize;
 use url::Url;
 
 use crate::error::Error;
+use crate::models::Story;
 
 pub const LOBSTERS: &str = "https://lobste.rs/";
 
@@ -29,6 +30,8 @@ pub struct UnauthenticatedClient {
 pub struct AuthenticatedClient {
     http: HttpClient,
 }
+
+pub struct Page(u32);
 
 fn config_path() -> Result<PathBuf, Error> {
     ProjectDirs::from("rs", "lobste", env!("CARGO_PKG_NAME"))
@@ -134,6 +137,17 @@ impl AuthenticatedClient {
         // Move into place atomically
         fs::rename(cookie_store_tmp_path, cookie_store_path).map_err(Error::from)
     }
+
+    /// Retrieve the front page stories, newest first
+    pub fn index(&self, page: Option<Page>) -> impl Future<Item = Vec<Story>, Error = Error> {
+        let path = page
+            .map(|Page(page): Page| format!("page/{}", page))
+            .unwrap_or_else(|| "".to_string());
+
+        self.http
+            .get_unauthenticated_json(&path)
+            .and_then(|mut res| res.json::<Vec<Story>>().map_err(Error::from))
+    }
 }
 
 impl HttpClient {
@@ -180,5 +194,42 @@ impl HttpClient {
 
                 res
             })
+    }
+
+    fn get_unauthenticated_json(&self, path: &str) -> impl Future<Item = Response, Error = Error> {
+        let request_url = self.base_url.join(path);
+        let client = self.reqwest.clone();
+
+        let cookies: Arc<Mutex<_>> = self.cookies.clone();
+        request_url
+            .map_err(Error::from)
+            .into_future()
+            .and_then(move |url| {
+                client
+                    .get(url.as_str())
+                    .header(ACCEPT, "application/json")
+                    .send()
+                    .map_err(Error::from)
+            })
+            .map(move |res| {
+                res.headers().get_all(SET_COOKIE).iter().for_each(|cookie| {
+                    cookie
+                        .to_str()
+                        .ok()
+                        .and_then(|cookie| cookies.lock().unwrap().parse(cookie, res.url()).ok());
+                });
+
+                res
+            })
+    }
+}
+
+impl Page {
+    pub fn new(page: u32) -> Option<Page> {
+        if page > 1 {
+            Some(Page(page))
+        } else {
+            None
+        }
     }
 }
