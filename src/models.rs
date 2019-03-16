@@ -1,19 +1,19 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct User {
     pub username: String,
     pub created_at: String,
     pub is_admin: bool,
-    pub about: String,
+    pub about: Option<String>,
     pub is_moderator: bool,
-    pub karma: i32,
+    pub karma: Option<i32>,
     pub avatar_url: String,
-    pub invited_by_user: String,
+    pub invited_by_user: Option<String>,
     pub github_username: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct StoryId(pub String);
 
 #[derive(Debug, Deserialize)]
@@ -27,14 +27,14 @@ pub struct Story {
     pub upvotes: u32,
     pub downvotes: u32,
     pub comment_count: u32,
-    pub description: String,
+    pub description: Option<String>,
     pub comments_url: String,
     pub submitter_user: User,
     pub tags: Vec<Tag>,
     pub comments: Option<Vec<Comment>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct CommentId(pub String);
 
 #[derive(Debug, Deserialize)]
@@ -52,6 +52,14 @@ pub struct Comment {
     pub url: String,
     pub indent_level: u32,
     pub commenting_user: User,
+}
+
+#[derive(Debug, Serialize)]
+pub struct NewComment {
+    pub story_id: StoryId,
+    pub comment: String,
+    pub hat_id: Option<String>,
+    pub parent_comment_short_id: Option<CommentId>,
 }
 
 #[derive(Debug, Deserialize)]

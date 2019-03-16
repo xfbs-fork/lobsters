@@ -7,14 +7,17 @@ use std::sync::{Arc, Mutex};
 use cookie_store::CookieStore;
 use directories::ProjectDirs;
 use futures::{Future, IntoFuture, Stream};
-use reqwest::header::{HeaderMap, ACCEPT, COOKIE, SET_COOKIE};
+use kuchiki::traits::TendrilSink;
+use reqwest::header::{HeaderMap, ACCEPT, COOKIE, LOCATION, SET_COOKIE};
 use reqwest::r#async::{Client as ReqwestClient, ClientBuilder, Response};
+use reqwest::RedirectPolicy;
 use serde::Serialize;
 use url::Url;
 
 use crate::error::Error;
-use crate::models::{Story, StoryId};
+use crate::models::{NewComment, Story, StoryId};
 
+#[derive(Clone)]
 struct HttpClient {
     base_url: Url,
     reqwest: ReqwestClient,
@@ -53,7 +56,10 @@ impl Client {
             CookieStore::default()
         };
 
-        let client = ClientBuilder::new().use_rustls_tls().build()?;
+        let client = ClientBuilder::new()
+            .redirect(RedirectPolicy::none())
+            .use_rustls_tls()
+            .build()?;
         let http = HttpClient {
             base_url,
             reqwest: client,
@@ -70,19 +76,29 @@ impl Client {
         username_or_email: String,
         password: String,
     ) -> impl Future<Item = (), Error = Error> {
-        let params = [("email", username_or_email), ("password", password)];
+        let get_token = self.http.get("login").and_then(Self::extract_csrf_token);
 
-        self.http
-            .post_unauthenticated("login", params)
-            .and_then(|res| res.into_body().concat2().map_err(Error::from))
-            .and_then(|body| {
-                let b = std::str::from_utf8(&body).unwrap();
-                eprintln!("body = {}", b);
+        let client = self.http.clone();
+        let login = move |token| {
+            let params = [("email", username_or_email), ("password", password)];
 
-                // TODO: Determine success
+            client
+                .post_unauthenticated("login", params, token)
+                .and_then(|res| {
+                    eprintln!("{:?}", res.status());
+                    res.into_body().concat2().map_err(Error::from)
+                })
+                .and_then(|body| {
+                    let b = std::str::from_utf8(&body).unwrap();
+                    eprintln!("login body = {}", b);
 
-                futures::future::ok(())
-            })
+                    // TODO: Determine success
+
+                    futures::future::ok(())
+                })
+        };
+
+        get_token.and_then(login)
     }
 
     /// Save the cookie store so that a client can be created without needing to log in first
@@ -136,6 +152,68 @@ impl Client {
             .get_json(&path)
             .and_then(|mut res| res.json::<Story>().map_err(Error::from))
     }
+
+    pub fn post_comment(
+        &self,
+        comment: NewComment,
+    ) -> impl Future<Item = Option<String>, Error = Error> {
+        // Need to fetch a page to get a CSRF token, /about seems like one of the cheapest
+        // pages to fetch
+        let get_token = self.http.get("about").and_then(Self::extract_csrf_token);
+
+        let client = self.http.clone();
+        let comment = move |token| {
+            client
+                .post_unauthenticated("comments", comment, token)
+                .and_then(|res| {
+                    let location = res
+                        .headers()
+                        .get(LOCATION)
+                        .and_then(|header| header.to_str().ok())
+                        .map(|s| s.to_string());
+                    res.into_body()
+                        .concat2()
+                        .map_err(Error::from)
+                        .map(|body| (location, body))
+                })
+                .and_then(|(location, body)| {
+                    let b = std::str::from_utf8(&body).unwrap();
+                    eprintln!("body = {}", b);
+
+                    // TODO: Determine success
+
+                    futures::future::ok(location)
+                })
+        };
+
+        get_token.and_then(comment)
+    }
+
+    fn extract_csrf_token(res: Response) -> impl Future<Item = String, Error = Error> {
+        // TODO: This is super ugly, tidy up
+        // Would be good to split the response/futures handing from the html handling
+        res.into_body()
+            .concat2()
+            .map_err(Error::from)
+            .and_then(|body| {
+                std::str::from_utf8(&body)
+                    .map_err(|_err| Error::InvalidStr)
+                    .and_then(|body| {
+                        let html = kuchiki::parse_html().one(body);
+                        html.select_first("meta[name='csrf-token']")
+                            .ok()
+                            .and_then(|input| {
+                                let attrs = input.attributes.borrow();
+                                attrs.get("content").map(|content| {
+                                    dbg!(&content);
+                                    content.to_string()
+                                })
+                            })
+                            .ok_or_else(|| Error::MissingHtmlElement)
+                    })
+            })
+            .into_future()
+    }
 }
 
 impl HttpClient {
@@ -143,6 +221,7 @@ impl HttpClient {
         &self,
         path: &str,
         body: B,
+        csrf_token: String,
     ) -> impl Future<Item = Response, Error = Error>
     where
         B: Serialize,
@@ -161,23 +240,85 @@ impl HttpClient {
         //             .map_err(Error::from)
         //     })
 
-        let cookies: Arc<Mutex<_>> = self.cookies.clone();
+        let cookie_set: Arc<Mutex<_>> = self.cookies.clone();
+        let cookie_get: Arc<Mutex<_>> = self.cookies.clone();
         request_url
             .map_err(Error::from)
             .into_future()
             .and_then(move |url| {
+                eprintln!("POST {}", url.as_str());
+
+                // Add cookies to request
+                let store = cookie_get.lock().unwrap();
+                let cookies = store.matches(&url);
+                let cookie_headers =
+                    cookies
+                        .iter()
+                        .fold(HeaderMap::new(), |mut headers, cookie| {
+                            // NOTE(unwrap): Assumed to be safe since it was valid when put into the store
+                            headers.append(COOKIE, cookie.encoded().to_string().parse().unwrap());
+                            headers
+                        });
+                dbg!(&cookie_headers);
+
                 client
                     .post(url.as_str())
+                    .header("X-CSRF-Token", csrf_token)
+                    .headers(cookie_headers)
                     .form(&body)
                     .send()
                     .map_err(Error::from)
             })
             .map(move |res| {
+                dbg!(res.headers());
                 res.headers().get_all(SET_COOKIE).iter().for_each(|cookie| {
-                    cookie
-                        .to_str()
-                        .ok()
-                        .and_then(|cookie| cookies.lock().unwrap().parse(cookie, res.url()).ok());
+                    dbg!(&cookie);
+                    cookie.to_str().ok().and_then(|cookie| {
+                        cookie_set.lock().unwrap().parse(cookie, res.url()).ok()
+                    });
+                });
+
+                res
+            })
+    }
+
+    fn get(&self, path: &str) -> impl Future<Item = Response, Error = Error> {
+        let request_url = self.base_url.join(path);
+        let client = self.reqwest.clone();
+
+        let cookie_get: Arc<Mutex<_>> = self.cookies.clone();
+        let cookie_set: Arc<Mutex<_>> = self.cookies.clone();
+        request_url
+            .map_err(Error::from)
+            .into_future()
+            .and_then(move |url| {
+                eprintln!("GET {}", url.as_str());
+
+                // Add cookies to request
+                let store = cookie_get.lock().unwrap();
+                let cookies = store.matches(&url);
+                let cookie_headers =
+                    cookies
+                        .iter()
+                        .fold(HeaderMap::new(), |mut headers, cookie| {
+                            // NOTE(unwrap): Assumed to be safe since it was valid when put into the store
+                            headers.append(COOKIE, cookie.encoded().to_string().parse().unwrap());
+                            headers
+                        });
+                dbg!(&cookie_headers);
+
+                client
+                    .get(url.as_str())
+                    .headers(cookie_headers)
+                    .send()
+                    .map_err(Error::from)
+            })
+            .map(move |res| {
+                res.headers().get_all(SET_COOKIE).iter().for_each(|cookie| {
+                    eprintln!("Set-Cookie: {:?}", cookie);
+                    cookie.to_str().ok().and_then(|cookie| {
+                        cookie_set.lock().unwrap().parse(cookie, res.url()).ok()
+                    });
                 });
 
                 res

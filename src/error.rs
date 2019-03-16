@@ -9,6 +9,7 @@ pub enum Error {
     Url(url::ParseError),
     HomeNotFound,
     CookieStore,
+    MissingHtmlElement,
 }
 
 #[derive(Debug)]
