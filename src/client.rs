@@ -26,7 +26,7 @@ pub struct UnauthenticatedClient {
     http: HttpClient,
 }
 
-pub struct Client {
+pub struct AuthenticatedClient {
     http: HttpClient,
 }
 
@@ -43,32 +43,26 @@ fn cookie_store_path() -> Result<PathBuf, Error> {
 }
 
 impl UnauthenticatedClient {
+    /// Create a new client that can be used to log in
     pub fn new(base_url: Url) -> Result<Self, Error> {
         let client = ClientBuilder::new().use_rustls_tls().build()?;
-        let cookie_store_path = cookie_store_path()?;
-
-        let cookies = if cookie_store_path.exists() {
-            let cookie_file = BufReader::new(File::open(cookie_store_path)?);
-            CookieStore::load_json(cookie_file).map_err(|_err| Error::CookieStore)?
-        } else {
-            CookieStore::default()
-        };
 
         let http = HttpClient {
             base_url,
             reqwest: client,
-            cookies: Arc::new(Mutex::new(cookies)),
+            cookies: Arc::new(Mutex::new(CookieStore::default())),
         };
 
         Ok(UnauthenticatedClient { http })
     }
 
     // FIXME: Return the unauthenticated client back?
+    /// Attempt to authenticate with the server
     pub fn login(
         self,
         username_or_email: String,
         password: String,
-    ) -> impl Future<Item = Client, Error = Error> {
+    ) -> impl Future<Item = AuthenticatedClient, Error = Error> {
         let params = [("email", username_or_email), ("password", password)];
 
         self.http
@@ -80,12 +74,36 @@ impl UnauthenticatedClient {
 
                 // TODO: Determine success
 
-                futures::future::ok(Client { http: self.http })
+                futures::future::ok(AuthenticatedClient { http: self.http })
             })
     }
 }
 
-impl Client {
+impl AuthenticatedClient {
+    /// Load the cookie store and return an AuthenticatedClient
+    ///
+    /// Returns an error if the cookie store does not exist or there is a problem loading it.
+    pub fn new(base_url: Url) -> Result<Self, Error> {
+        let cookie_store_path = cookie_store_path()?;
+
+        if !cookie_store_path.exists() {
+            return Err(Error::CookieStore);
+        }
+
+        let cookie_file = BufReader::new(File::open(cookie_store_path)?);
+        let cookies = CookieStore::load_json(cookie_file).map_err(|_err| Error::CookieStore)?;
+
+        let client = ClientBuilder::new().use_rustls_tls().build()?;
+        let http = HttpClient {
+            base_url,
+            reqwest: client,
+            cookies: Arc::new(Mutex::new(cookies)),
+        };
+
+        Ok(AuthenticatedClient { http })
+    }
+
+    /// Save the cookie store so that a client can be created without needing to log in first
     pub fn save_cookies(&self) -> Result<(), Error> {
         let cookie_store_path = cookie_store_path()?;
         let cookie_store_tmp_path = cookie_store_path.with_extension("tmp");

@@ -1,24 +1,30 @@
 use std::env;
 
-use futures::future::{self, Future};
+use futures::future::{Future, IntoFuture};
+use url::Url;
 
 use lobsters::{
-    client::{Client, UnauthenticatedClient},
+    client::{AuthenticatedClient, UnauthenticatedClient},
     error::Error,
 };
 
 fn main() {
     let username = env::var("LOBSTERS_USER").expect("LOBSTERS_USER must be set");
     let password = env::var("LOBSTERS_PASS").expect("LOBSTERS_PASS must be set");
-    let base_url = lobsters::client::LOBSTERS
+    let base_url: Url = lobsters::client::LOBSTERS
         .parse()
         .expect("base url is invalid");
 
-    let client = UnauthenticatedClient::new(base_url).expect("URL is not https");
-
     let mut rt = tokio::runtime::Runtime::new().unwrap();
 
-    let work = client.login(username, password);
+    let work = AuthenticatedClient::new(base_url.clone())
+        .into_future()
+        .or_else(|_err| {
+            println!("No cookie store, logging in...");
+            // TODO: Inspect err and determine if this is an authentication err
+            let client = UnauthenticatedClient::new(base_url).expect("URL is not https");
+            client.login(username, password)
+        });
     let client = rt.block_on(work).expect("error logging in");
 
     client.save_cookies().expect("unable to save cookies");
