@@ -13,7 +13,7 @@ use serde::Serialize;
 use url::Url;
 
 use crate::error::Error;
-use crate::models::Story;
+use crate::models::{Story, StoryId};
 
 pub const LOBSTERS: &str = "https://lobste.rs/";
 
@@ -126,8 +126,17 @@ impl Client {
             .unwrap_or_else(|| "".to_string());
 
         self.http
-            .get_unauthenticated_json(&path)
+            .get_json(&path)
             .and_then(|mut res| res.json::<Vec<Story>>().map_err(Error::from))
+    }
+
+    /// Retrieve the comments for a story
+    pub fn story(&self, story_id: &StoryId) -> impl Future<Item = Story, Error = Error> {
+        let path = format!("s/{}", story_id.0);
+
+        self.http
+            .get_json(&path)
+            .and_then(|mut res| res.json::<Story>().map_err(Error::from))
     }
 }
 
@@ -177,7 +186,7 @@ impl HttpClient {
             })
     }
 
-    fn get_unauthenticated_json(&self, path: &str) -> impl Future<Item = Response, Error = Error> {
+    fn get_json(&self, path: &str) -> impl Future<Item = Response, Error = Error> {
         let request_url = self.base_url.join(path);
         let client = self.reqwest.clone();
 
