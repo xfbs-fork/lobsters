@@ -244,17 +244,7 @@ impl HttpClient {
                     .send()
                     .map_err(Error::from)
             })
-            .map(move |res| {
-                dbg!(res.headers());
-                res.headers().get_all(SET_COOKIE).iter().for_each(|cookie| {
-                    dbg!(&cookie);
-                    cookie.to_str().ok().and_then(|cookie| {
-                        cookie_set.lock().unwrap().parse(cookie, res.url()).ok()
-                    });
-                });
-
-                res
-            })
+            .map(move |res| Self::store_cookies(res, cookie_set))
     }
 
     fn get(&self, path: &str) -> impl Future<Item = Response, Error = Error> {
@@ -275,16 +265,7 @@ impl HttpClient {
                     .send()
                     .map_err(Error::from)
             })
-            .map(move |res| {
-                res.headers().get_all(SET_COOKIE).iter().for_each(|cookie| {
-                    eprintln!("Set-Cookie: {:?}", cookie);
-                    cookie.to_str().ok().and_then(|cookie| {
-                        cookie_set.lock().unwrap().parse(cookie, res.url()).ok()
-                    });
-                });
-
-                res
-            })
+            .map(move |res| Self::store_cookies(res, cookie_set))
     }
 
     fn get_json(&self, path: &str) -> impl Future<Item = Response, Error = Error> {
@@ -304,15 +285,7 @@ impl HttpClient {
                     .send()
                     .map_err(Error::from)
             })
-            .map(move |res| {
-                res.headers().get_all(SET_COOKIE).iter().for_each(|cookie| {
-                    cookie.to_str().ok().and_then(|cookie| {
-                        cookie_set.lock().unwrap().parse(cookie, res.url()).ok()
-                    });
-                });
-
-                res
-            })
+            .map(move |res| Self::store_cookies(res, cookie_set))
     }
 
     fn cookie_headers(cookies: Arc<Mutex<CookieStore>>, url: &Url) -> HeaderMap {
@@ -321,12 +294,23 @@ impl HttpClient {
         let cookies = store.matches(url);
 
         cookies
-        .iter()
-        .fold(HeaderMap::new(), |mut headers, cookie| {
-            // NOTE(unwrap): Assumed to be safe since it was valid when put into the store
-            headers.append(COOKIE, cookie.encoded().to_string().parse().unwrap());
-            headers
-        })
+            .iter()
+            .fold(HeaderMap::new(), |mut headers, cookie| {
+                // NOTE(unwrap): Assumed to be safe since it was valid when put into the store
+                headers.append(COOKIE, cookie.encoded().to_string().parse().unwrap());
+                headers
+            })
+    }
+
+    fn store_cookies(res: Response, cookies: Arc<Mutex<CookieStore>>) -> Response {
+        res.headers().get_all(SET_COOKIE).iter().for_each(|cookie| {
+            cookie
+                .to_str()
+                .ok()
+                .and_then(|cookie| cookies.lock().unwrap().parse(cookie, res.url()).ok());
+        });
+
+        res
     }
 }
 
