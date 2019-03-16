@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use cookie_store::CookieStore;
 use directories::ProjectDirs;
 use futures::{Future, IntoFuture, Stream};
-use reqwest::header::{ACCEPT, SET_COOKIE};
+use reqwest::header::{HeaderMap, ACCEPT, COOKIE, SET_COOKIE};
 use reqwest::r#async::{Client as ReqwestClient, ClientBuilder, Response};
 use serde::Serialize;
 use url::Url;
@@ -23,11 +23,7 @@ struct HttpClient {
     cookies: Arc<Mutex<CookieStore>>,
 }
 
-pub struct UnauthenticatedClient {
-    http: HttpClient,
-}
-
-pub struct AuthenticatedClient {
+pub struct Client {
     http: HttpClient,
 }
 
@@ -45,27 +41,37 @@ fn cookie_store_path() -> Result<PathBuf, Error> {
     Ok(cookie_store_path)
 }
 
-impl UnauthenticatedClient {
-    /// Create a new client that can be used to log in
+impl Client {
+    /// Create a new client
+    ///
+    /// Will attempt to load the cookie store if it exists.
     pub fn new(base_url: Url) -> Result<Self, Error> {
-        let client = ClientBuilder::new().use_rustls_tls().build()?;
+        let cookie_store_path = cookie_store_path()?;
 
+        let cookies = if cookie_store_path.exists() {
+            let cookie_file = BufReader::new(File::open(cookie_store_path)?);
+            CookieStore::load_json(cookie_file).map_err(|_err| Error::CookieStore)?
+        } else {
+            CookieStore::default()
+        };
+
+        let client = ClientBuilder::new().use_rustls_tls().build()?;
         let http = HttpClient {
             base_url,
             reqwest: client,
-            cookies: Arc::new(Mutex::new(CookieStore::default())),
+            cookies: Arc::new(Mutex::new(cookies)),
         };
 
-        Ok(UnauthenticatedClient { http })
+        Ok(Client { http })
     }
 
     // FIXME: Return the unauthenticated client back?
     /// Attempt to authenticate with the server
     pub fn login(
-        self,
+        &self,
         username_or_email: String,
         password: String,
-    ) -> impl Future<Item = AuthenticatedClient, Error = Error> {
+    ) -> impl Future<Item = (), Error = Error> {
         let params = [("email", username_or_email), ("password", password)];
 
         self.http
@@ -77,33 +83,8 @@ impl UnauthenticatedClient {
 
                 // TODO: Determine success
 
-                futures::future::ok(AuthenticatedClient { http: self.http })
+                futures::future::ok(())
             })
-    }
-}
-
-impl AuthenticatedClient {
-    /// Load the cookie store and return an AuthenticatedClient
-    ///
-    /// Returns an error if the cookie store does not exist or there is a problem loading it.
-    pub fn new(base_url: Url) -> Result<Self, Error> {
-        let cookie_store_path = cookie_store_path()?;
-
-        if !cookie_store_path.exists() {
-            return Err(Error::CookieStore);
-        }
-
-        let cookie_file = BufReader::new(File::open(cookie_store_path)?);
-        let cookies = CookieStore::load_json(cookie_file).map_err(|_err| Error::CookieStore)?;
-
-        let client = ClientBuilder::new().use_rustls_tls().build()?;
-        let http = HttpClient {
-            base_url,
-            reqwest: client,
-            cookies: Arc::new(Mutex::new(cookies)),
-        };
-
-        Ok(AuthenticatedClient { http })
     }
 
     /// Save the cookie store so that a client can be created without needing to log in first
@@ -162,7 +143,7 @@ impl HttpClient {
         let request_url = self.base_url.join(path);
         let client = self.reqwest.clone();
 
-        // This hits the recursion limit of the compiler ¯\_(ツ)_/¯
+        // This reports a recursion limit error that isn't fixed by increasing the limit ¯\_(ツ)_/¯
         // futures::future::ok(self.reqwest.clone())
         //     .and_then(|client| request_url.map(|url| (url, client)).map_err(Error::from))
         //     .and_then(move |(url, client)| {
@@ -200,23 +181,37 @@ impl HttpClient {
         let request_url = self.base_url.join(path);
         let client = self.reqwest.clone();
 
-        let cookies: Arc<Mutex<_>> = self.cookies.clone();
+        let cookie_get: Arc<Mutex<_>> = self.cookies.clone();
+        let cookie_set: Arc<Mutex<_>> = self.cookies.clone();
         request_url
             .map_err(Error::from)
             .into_future()
             .and_then(move |url| {
+                // Add cookies to request
+                let store = cookie_get.lock().unwrap();
+                let cookies = store.matches(&url);
+                let cookie_headers =
+                    cookies
+                        .iter()
+                        .fold(HeaderMap::new(), |mut headers, cookie| {
+                            // NOTE(unwrap): Assumed to be safe since it was valid when put into the store
+                            headers.append(COOKIE, cookie.encoded().to_string().parse().unwrap());
+                            headers
+                        });
+                dbg!(&cookie_headers);
+
                 client
                     .get(url.as_str())
                     .header(ACCEPT, "application/json")
+                    .headers(cookie_headers)
                     .send()
                     .map_err(Error::from)
             })
             .map(move |res| {
                 res.headers().get_all(SET_COOKIE).iter().for_each(|cookie| {
-                    cookie
-                        .to_str()
-                        .ok()
-                        .and_then(|cookie| cookies.lock().unwrap().parse(cookie, res.url()).ok());
+                    cookie.to_str().ok().and_then(|cookie| {
+                        cookie_set.lock().unwrap().parse(cookie, res.url()).ok()
+                    });
                 });
 
                 res
