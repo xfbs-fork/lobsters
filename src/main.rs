@@ -9,9 +9,7 @@ use lobsters::models::StoryId;
 fn main() {
     let username = env::var("LOBSTERS_USER").expect("LOBSTERS_USER must be set");
     let password = env::var("LOBSTERS_PASS").expect("LOBSTERS_PASS must be set");
-    let base_url: Url = lobsters::client::LOBSTERS
-        .parse()
-        .expect("base url is invalid");
+    let base_url: Url = lobsters::URL.parse().expect("base url is invalid");
 
     let mut rt = tokio::runtime::Runtime::new().unwrap();
 

@@ -15,8 +15,6 @@ use url::Url;
 use crate::error::Error;
 use crate::models::{Story, StoryId};
 
-pub const LOBSTERS: &str = "https://lobste.rs/";
-
 struct HttpClient {
     base_url: Url,
     reqwest: ReqwestClient,
