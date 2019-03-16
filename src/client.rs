@@ -189,29 +189,28 @@ impl Client {
     }
 
     fn extract_csrf_token(res: Response) -> impl Future<Item = String, Error = Error> {
-        // TODO: This is super ugly, tidy up
-        // Would be good to split the response/futures handing from the html handling
         res.into_body()
             .concat2()
             .map_err(Error::from)
             .and_then(|body| {
                 std::str::from_utf8(&body)
                     .map_err(|_err| Error::InvalidStr)
-                    .and_then(|body| {
-                        let html = kuchiki::parse_html().one(body);
-                        html.select_first("meta[name='csrf-token']")
-                            .ok()
-                            .and_then(|input| {
-                                let attrs = input.attributes.borrow();
-                                attrs.get("content").map(|content| {
-                                    dbg!(&content);
-                                    content.to_string()
-                                })
-                            })
-                            .ok_or_else(|| Error::MissingHtmlElement)
-                    })
+                    .and_then(Self::extract_csrf_token_from_html)
             })
             .into_future()
+    }
+
+    fn extract_csrf_token_from_html(body: &str) -> Result<String, Error> {
+        let html = kuchiki::parse_html().one(body);
+        html.select_first("meta[name='csrf-token']")
+            .ok()
+            .and_then(|input| {
+                let attrs = input.attributes.borrow();
+                attrs.get("content").map(|content| {
+                    content.to_string()
+                })
+            })
+        .ok_or_else(|| Error::MissingHtmlElement)
     }
 }
 
