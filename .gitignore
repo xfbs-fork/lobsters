@@ -1,3 +1,5 @@
 /target
+# rls creates target dirs in the workspace members
+*/target
 **/*.rs.bk
 Cargo.lock

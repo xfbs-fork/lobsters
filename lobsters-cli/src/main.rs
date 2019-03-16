@@ -1,8 +1,8 @@
 use std::env;
 
 use futures::future::{Future, IntoFuture};
-use url::Url;
 
+use lobsters::url::Url;
 use lobsters::client::Client;
 use lobsters::models::{NewComment, StoryId};
 

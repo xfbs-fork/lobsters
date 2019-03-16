@@ -43,6 +43,7 @@ pub mod models;
 
 pub use client::Client;
 pub use error::Error;
+pub use url;
 
 /// URL of lobste.rs. Useful as `base_url` to `Client`
 pub const URL: &str = "https://lobste.rs/";
