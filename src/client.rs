@@ -1,3 +1,5 @@
+mod http_client;
+
 use std::fs::{self, DirBuilder, File};
 use std::io;
 use std::io::BufReader;
@@ -8,21 +10,15 @@ use cookie_store::CookieStore;
 use directories::ProjectDirs;
 use futures::{Future, IntoFuture, Stream};
 use kuchiki::traits::TendrilSink;
-use reqwest::header::{HeaderMap, ACCEPT, COOKIE, LOCATION, SET_COOKIE};
-use reqwest::r#async::{Client as ReqwestClient, ClientBuilder, Response};
+use reqwest::header::LOCATION;
+use reqwest::r#async::{ClientBuilder, Response};
 use reqwest::RedirectPolicy;
-use serde::Serialize;
 use url::Url;
 
 use crate::error::Error;
 use crate::models::{NewComment, Story, StoryId};
 
-#[derive(Clone)]
-struct HttpClient {
-    base_url: Url,
-    reqwest: ReqwestClient,
-    cookies: Arc<Mutex<CookieStore>>,
-}
+use http_client::HttpClient;
 
 pub struct Client {
     http: HttpClient,
@@ -60,11 +56,7 @@ impl Client {
             .redirect(RedirectPolicy::none())
             .use_rustls_tls()
             .build()?;
-        let http = HttpClient {
-            base_url,
-            reqwest: client,
-            cookies: Arc::new(Mutex::new(cookies)),
-        };
+        let http = HttpClient::new(base_url, client, Arc::new(Mutex::new(cookies)));
 
         Ok(Client { http })
     }
@@ -120,12 +112,7 @@ impl Client {
         {
             // Write out the file entirely
             let mut tmp_file = File::create(&cookie_store_tmp_path)?;
-            self.http
-                .cookies
-                .lock()
-                .unwrap()
-                .save_json(&mut tmp_file)
-                .map_err(|_err| Error::CookieStore)?;
+            self.http.save_cookies(&mut tmp_file)?;
         }
 
         // Move into place atomically
@@ -206,110 +193,9 @@ impl Client {
             .ok()
             .and_then(|input| {
                 let attrs = input.attributes.borrow();
-                attrs.get("content").map(|content| {
-                    content.to_string()
-                })
+                attrs.get("content").map(|content| content.to_string())
             })
-        .ok_or_else(|| Error::MissingHtmlElement)
-    }
-}
-
-impl HttpClient {
-    fn post<B>(
-        &self,
-        path: &str,
-        body: B,
-        csrf_token: String,
-    ) -> impl Future<Item = Response, Error = Error>
-    where
-        B: Serialize,
-    {
-        let request_url = self.base_url.join(path);
-        let client = self.reqwest.clone();
-
-        let cookie_set: Arc<Mutex<_>> = self.cookies.clone();
-        let cookie_get: Arc<Mutex<_>> = self.cookies.clone();
-        request_url
-            .map_err(Error::from)
-            .into_future()
-            .and_then(move |url| {
-                eprintln!("POST {}", url.as_str());
-
-                client
-                    .post(url.as_str())
-                    .header("X-CSRF-Token", csrf_token)
-                    .headers(Self::cookie_headers(cookie_get, &url))
-                    .form(&body)
-                    .send()
-                    .map_err(Error::from)
-            })
-            .map(move |res| Self::store_cookies(res, cookie_set))
-    }
-
-    fn get(&self, path: &str) -> impl Future<Item = Response, Error = Error> {
-        let request_url = self.base_url.join(path);
-        let client = self.reqwest.clone();
-
-        let cookie_get: Arc<Mutex<_>> = self.cookies.clone();
-        let cookie_set: Arc<Mutex<_>> = self.cookies.clone();
-        request_url
-            .map_err(Error::from)
-            .into_future()
-            .and_then(move |url| {
-                eprintln!("GET {}", url.as_str());
-
-                client
-                    .get(url.as_str())
-                    .headers(Self::cookie_headers(cookie_get, &url))
-                    .send()
-                    .map_err(Error::from)
-            })
-            .map(move |res| Self::store_cookies(res, cookie_set))
-    }
-
-    fn get_json(&self, path: &str) -> impl Future<Item = Response, Error = Error> {
-        let request_url = self.base_url.join(path);
-        let client = self.reqwest.clone();
-
-        let cookie_get: Arc<Mutex<_>> = self.cookies.clone();
-        let cookie_set: Arc<Mutex<_>> = self.cookies.clone();
-        request_url
-            .map_err(Error::from)
-            .into_future()
-            .and_then(move |url| {
-                client
-                    .get(url.as_str())
-                    .header(ACCEPT, "application/json")
-                    .headers(Self::cookie_headers(cookie_get, &url))
-                    .send()
-                    .map_err(Error::from)
-            })
-            .map(move |res| Self::store_cookies(res, cookie_set))
-    }
-
-    fn cookie_headers(cookies: Arc<Mutex<CookieStore>>, url: &Url) -> HeaderMap {
-        // Add cookies to request
-        let store = cookies.lock().unwrap();
-        let cookies = store.matches(url);
-
-        cookies
-            .iter()
-            .fold(HeaderMap::new(), |mut headers, cookie| {
-                // NOTE(unwrap): Assumed to be safe since it was valid when put into the store
-                headers.append(COOKIE, cookie.encoded().to_string().parse().unwrap());
-                headers
-            })
-    }
-
-    fn store_cookies(res: Response, cookies: Arc<Mutex<CookieStore>>) -> Response {
-        res.headers().get_all(SET_COOKIE).iter().for_each(|cookie| {
-            cookie
-                .to_str()
-                .ok()
-                .and_then(|cookie| cookies.lock().unwrap().parse(cookie, res.url()).ok());
-        });
-
-        res
+            .ok_or_else(|| Error::MissingHtmlElement)
     }
 }
 
@@ -319,6 +205,29 @@ impl Page {
             Some(Page(page))
         } else {
             None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_csrf_token_from_html_success() {
+        let html = r#"<html><head><meta name="csrf-token" content="token" /></head></html>"#;
+        assert_eq!(
+            Client::extract_csrf_token_from_html(html).unwrap(),
+            "token".to_string()
+        );
+    }
+
+    #[test]
+    fn extract_csrf_token_from_html_faile() {
+        let html = r#"<html><head><title>No token</title></head></html>"#;
+        match Client::extract_csrf_token_from_html(html) {
+            Err(Error::MissingHtmlElement) => (),
+            other => panic!("Expected Error::MissingHtmlElement got {:?}", other),
         }
     }
 }
