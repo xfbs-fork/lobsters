@@ -1,21 +1,24 @@
+//! Errors
+
 use std::io;
 
+/// The main error type of the library
 #[derive(Debug)]
 pub enum Error {
+    /// An error related to performing a HTTP request
     Http(reqwest::Error),
+    /// An attempt was made to convert data into a string that was not valid UTF-8
     InvalidStr,
+    /// An I/O error
     Io(io::Error),
-    Login(LoginError),
+    /// An attempt to parse a string that was not a valid URL
     Url(url::ParseError),
+    /// User home directory could not be determined
     HomeNotFound,
+    /// An error related to maintaining the cookie store
     CookieStore,
+    /// A desired HTML element was unable to be found in the markup
     MissingHtmlElement,
-}
-
-#[derive(Debug)]
-pub enum LoginError {
-    NoCookie,
-    InvalidCookie,
 }
 
 impl From<reqwest::Error> for Error {

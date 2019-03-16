@@ -20,10 +20,12 @@ use crate::models::{NewComment, Story, StoryId};
 
 use http_client::HttpClient;
 
+/// The main Lobsters client
 pub struct Client {
     http: HttpClient,
 }
 
+/// Respresent a page number for a request greater that 1
 pub struct Page(u32);
 
 fn config_path() -> Result<PathBuf, Error> {
@@ -139,6 +141,7 @@ impl Client {
             .and_then(|mut res| res.json::<Story>().map_err(Error::from))
     }
 
+    /// Post a new comment on a story
     pub fn post_comment(
         &self,
         comment: NewComment,
@@ -200,6 +203,9 @@ impl Client {
 }
 
 impl Page {
+    /// Create a new `Page`
+    ///
+    /// returns `None` if the supplied argument is 0 or 1.
     pub fn new(page: u32) -> Option<Page> {
         if page > 1 {
             Some(Page(page))
