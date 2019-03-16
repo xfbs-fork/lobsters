@@ -55,8 +55,9 @@ Feel free to move it elsewhere (`~/.local/bin` for example).
 
 This project is dual licenced under:
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) **or**
-  http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 ([LICENSE-APACHE](https://git.sr.ht/~wezm/lobsters/tree/master/LICENSE-APACHE) OR
+  <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](https://git.sr.ht/~wezm/lobsters/tree/master/LICENSE-MIT) OR
+  <http://opensource.org/licenses/MIT>)
 
 [Lobsters]: https://lobste.rs/
