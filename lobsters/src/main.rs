@@ -35,10 +35,10 @@ fn main() {
         parent_comment_short_id: None,
     };
 
-    let login = client.login(username, password);
+    // let login = client.login(username, password);
     let create_comment = client.post_comment(comment);
-    let work = login.and_then(|_res| create_comment);
-    let comment_url = rt.block_on(work).expect("error posting comment");
+    // let work = login.and_then(|_res| create_comment);
+    let comment_url = rt.block_on(create_comment).expect("error posting comment");
 
     if let Some(comment_url) = comment_url {
         println!("Comment posted: {}", comment_url);
