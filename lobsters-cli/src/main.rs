@@ -1,21 +1,23 @@
+// Prevents a spare console from being created attached to our program on
+// windows, but only if we're running in release mode.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::collections::HashMap;
 
-use ansi_term::Colour::Fixed;
-use ansi_term::Style;
-use ansi_term::{ANSIString, ANSIStrings};
 use chrono::prelude::*;
 use chrono_humanize::HumanTime;
 use futures::future::{Future, IntoFuture};
 use structopt::StructOpt;
 use tokio::runtime::Runtime;
+use easycurses::{EasyCurses, Color, colorpair, InputMode, CursorVisibility, Input};
 
 use lobsters::client::Page;
-use lobsters::models::{NewComment, ShortTag, StoryId, Tag};
+use lobsters::models::{Story, NewComment, ShortTag, StoryId, Tag};
 use lobsters::url::{self, Url};
 use lobsters::Client;
 
 trait Colour {
-    fn colour(&self) -> ansi_term::Colour;
+    fn colour(&self) -> Color;
 }
 
 enum Error {
@@ -109,11 +111,40 @@ fn main() {
     }
 }
 
-fn login(rt: &mut Runtime, client: Client, options: Login) -> CommandResult {
+fn login(_rt: &mut Runtime, _client: Client, _options: Login) -> CommandResult {
     Ok(())
 }
 
+struct State {
+    offset: usize,
+    width: usize,
+    height: usize,
+}
+
+struct RenderBuffer {
+    lines: Vec<String>,
+}
+
+impl RenderBuffer {
+    fn render(&self, ui: &mut EasyCurses, offset: usize, width: usize, height: usize) {
+        ui.move_rc(0, 0);
+
+        for line in self.lines.iter().skip(offset).take(height) {
+            line.chars().take(width).for_each(|c| { ui.print_char(c); });
+        }
+    }
+}
+
 fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult {
+    let mut ui = EasyCurses::initialize_system().unwrap();
+    ui.set_title_win32("Lobsters");
+    let (row_count, col_count) = ui.get_row_col_count();
+    // ui.set_scroll_region(0, row_count - 1);
+    // ui.set_scrolling(true);
+    ui.set_echo(false);
+    ui.set_input_mode(InputMode::Character);
+    // ui.set_cursor_visibility(CursorVisibility::Invisible);
+
     let page = Page::new(options.page.unwrap_or(1));
     let future_stories = client.index(page);
     let future_tags = client.tags();
@@ -124,6 +155,41 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
 
     let tag_map = TagMap::new(tags);
 
+    // Dispay the render buffer
+    let mut buffer = Vec::with_capacity(stories.len() * 2);
+    render_stories(&stories, &tag_map, &mut buffer)?;
+    let render_buffer = RenderBuffer { lines: buffer };
+    let mut state = State { offset: 0, width: col_count as usize, height: row_count as usize };
+
+    render_buffer.render(&mut ui, state.offset, state.width, state.height);
+    ui.refresh();
+    loop {
+        match ui.get_input() {
+            Some(Input::Character('q')) => break,
+            Some(Input::Character('j')) => {
+                // let (mut row, col) = ui.get_cursor_rc();
+                // row += 1;
+                // ui.move_rc(row, col);
+                state.offset += 1;
+                render_buffer.render(&mut ui, state.offset, state.width, state.height);
+            },
+            Some(Input::Character('k')) => {
+                // let (mut row, col) = ui.get_cursor_rc();
+                // row -= 1;
+                // ui.move_rc(row, col);
+                state.offset -= 1; // do a checked sub
+                render_buffer.render(&mut ui, state.offset, state.width, state.height);
+            }
+            Some(_) => (),
+            None => (),
+        }
+        ui.refresh();
+    }
+
+    Ok(())
+}
+
+fn render_stories(stories: &[Story], tag_map: &TagMap, buffer: &mut Vec<String>) -> CommandResult {
     // Calculate the max number of digits so scores can be padded
     let digits = stories
         .iter()
@@ -160,20 +226,20 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
             .and_then(|url| url.domain().map(|d| d.to_string()))
             .unwrap_or_else(|| "".to_string());
 
-        println!(
-            "{score} {title} {tags} {domain}",
-            score = Fixed(248).paint(score),
-            title = Style::new().fg(Fixed(33)).bold().paint(story.title),
+        buffer.push(format!(
+            "{score} {title} {tags} {domain}\n",
+            score = score,
+            title = story.title,
             tags = tags,
-            domain = Style::new().fg(Fixed(245)).italic().paint(domain)
-        );
-        println!("{}", Fixed(250).paint(meta));
+            domain = domain
+        ));
+        buffer.push(format!("{}\n", meta));
     }
 
     Ok(())
 }
 
-fn comment(rt: &mut Runtime, client: Client, options: Comment) -> CommandResult {
+fn comment(_rt: &mut Runtime, _client: Client, _options: Comment) -> CommandResult {
     Ok(())
 }
 
@@ -226,15 +292,15 @@ impl From<chrono::ParseError> for Error {
 }
 
 impl Colour for Tag {
-    fn colour(&self) -> ansi_term::Colour {
+    fn colour(&self) -> Color {
         if self.tag == "ask" {
-            Fixed(1)
+            Color::Red
         } else if self.tag == "meta" {
-            Fixed(252)
+            Color::White
         } else if self.is_media {
-            Fixed(195)
+            Color::Blue
         } else {
-            Fixed(229)
+            Color::Yellow
         }
     }
 }
@@ -249,9 +315,9 @@ impl TagMap {
         TagMap { tags }
     }
 
-    pub fn get_coloured<'a>(&self, name: &'a ShortTag) -> Option<ANSIString<'a>> {
+    pub fn get_coloured<'a>(&self, name: &'a ShortTag) -> Option<String> {
         self.tags
             .get(&name.0)
-            .map(|tag| tag.colour().paint(name.0.clone()))
+            .map(|tag| name.0.clone())
     }
 }
