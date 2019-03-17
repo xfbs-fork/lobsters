@@ -34,7 +34,7 @@ pub struct Story {
     pub description: Option<String>,
     pub comments_url: String,
     pub submitter_user: User,
-    pub tags: Vec<Tag>,
+    pub tags: Vec<ShortTag>,
     pub comments: Option<Vec<Comment>>,
 }
 
@@ -67,4 +67,18 @@ pub struct NewComment {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Tag(pub String);
+pub struct ShortTag(pub String);
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TagId(pub u32);
+
+#[derive(Debug, Deserialize)]
+pub struct Tag {
+    pub id: TagId,
+    pub tag: String,
+    pub description: Option<String>,
+    pub privileged: bool,
+    pub is_media: bool,
+    pub inactive: bool,
+    pub hotness_mod: f64,
+}

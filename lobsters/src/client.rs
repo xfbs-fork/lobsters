@@ -18,7 +18,7 @@ use reqwest::RedirectPolicy;
 use url::Url;
 
 use crate::error::Error;
-use crate::models::{NewComment, Story, StoryId};
+use crate::models::{NewComment, Story, StoryId, Tag};
 
 use http_client::HttpClient;
 
@@ -96,33 +96,6 @@ impl Client {
         get_token.and_then(login)
     }
 
-    /// Save the cookie store so that a client can be created without needing to log in first
-    pub fn save_cookies(&self) -> Result<(), Error> {
-        let cookie_store_path = cookie_store_path()?;
-        let cookie_store_tmp_path = cookie_store_path.with_extension("tmp");
-
-        // Ensure the directory the cookie file is stored in exists
-        let config_dir = cookie_store_path.parent().ok_or_else(|| {
-            Error::Io(io::Error::new(
-                io::ErrorKind::Other,
-                "unable to find parent dir of cookie file",
-            ))
-        })?;
-
-        if !config_dir.exists() {
-            DirBuilder::new().recursive(true).create(config_dir)?;
-        }
-
-        {
-            // Write out the file entirely
-            let mut tmp_file = File::create(&cookie_store_tmp_path)?;
-            self.http.save_cookies(&mut tmp_file)?;
-        }
-
-        // Move into place atomically
-        fs::rename(cookie_store_tmp_path, cookie_store_path).map_err(Error::from)
-    }
-
     /// Retrieve the front page stories, newest first
     pub fn index(&self, page: Option<Page>) -> impl Future<Item = Vec<Story>, Error = Error> {
         let path = page
@@ -141,6 +114,13 @@ impl Client {
         self.http
             .get_json(&path)
             .and_then(|mut res| res.json::<Story>().map_err(Error::from))
+    }
+
+    /// Retrieve the list of tags on the site
+    pub fn tags(&self) -> impl Future<Item = Vec<Tag>, Error = Error> {
+        self.http
+            .get_json("tags")
+            .and_then(|mut res| res.json::<Vec<Tag>>().map_err(Error::from))
     }
 
     /// Post a new comment on a story
@@ -178,6 +158,33 @@ impl Client {
         };
 
         get_token.and_then(comment)
+    }
+
+    /// Save the cookie store so that a client can be created without needing to log in first
+    pub fn save_cookies(&self) -> Result<(), Error> {
+        let cookie_store_path = cookie_store_path()?;
+        let cookie_store_tmp_path = cookie_store_path.with_extension("tmp");
+
+        // Ensure the directory the cookie file is stored in exists
+        let config_dir = cookie_store_path.parent().ok_or_else(|| {
+            Error::Io(io::Error::new(
+                io::ErrorKind::Other,
+                "unable to find parent dir of cookie file",
+            ))
+        })?;
+
+        if !config_dir.exists() {
+            DirBuilder::new().recursive(true).create(config_dir)?;
+        }
+
+        {
+            // Write out the file entirely
+            let mut tmp_file = File::create(&cookie_store_tmp_path)?;
+            self.http.save_cookies(&mut tmp_file)?;
+        }
+
+        // Move into place atomically
+        fs::rename(cookie_store_tmp_path, cookie_store_path).map_err(Error::from)
     }
 
     /// The base URL of the remote site the client will communicate with

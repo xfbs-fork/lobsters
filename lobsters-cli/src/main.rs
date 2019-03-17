@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use ansi_term::Colour::Fixed;
 use ansi_term::Style;
 use ansi_term::{ANSIString, ANSIStrings};
@@ -8,9 +10,13 @@ use structopt::StructOpt;
 use tokio::runtime::Runtime;
 
 use lobsters::client::Page;
-use lobsters::models::{NewComment, StoryId};
+use lobsters::models::{NewComment, ShortTag, StoryId, Tag};
 use lobsters::url::{self, Url};
 use lobsters::Client;
+
+trait Colour {
+    fn colour(&self) -> ansi_term::Colour;
+}
 
 enum Error {
     Lobsters(lobsters::Error),
@@ -59,6 +65,10 @@ struct App {
 
 type CommandResult = Result<(), Error>;
 
+struct TagMap {
+    tags: HashMap<String, Tag>,
+}
+
 fn main() {
     let app = App::from_args();
     let mut rt = Runtime::new().unwrap();
@@ -105,9 +115,16 @@ fn login(rt: &mut Runtime, client: Client, options: Login) -> CommandResult {
 
 fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult {
     let page = Page::new(options.page.unwrap_or(1));
-    let work = client.index(page);
-    let stories = rt.block_on(work)?;
+    let future_stories = client.index(page);
+    let future_tags = client.tags();
+    let work = future_tags.join(future_stories);
 
+    // Fetch tags and stories in parallel
+    let (tags, stories) = rt.block_on(work)?;
+
+    let tag_map = TagMap::new(tags);
+
+    // Calculate the max number of digits so scores can be padded
     let digits = stories
         .iter()
         .map(|story| story.score.abs())
@@ -134,7 +151,7 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
             story
                 .tags
                 .iter()
-                .map(|tag| tag.0.as_str())
+                .filter_map(|tag| tag_map.get_coloured(tag).map(|tag| tag.to_string()))
                 .collect::<Vec<_>>()
                 .as_slice(),
             " ",
@@ -146,11 +163,11 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
         println!(
             "{score} {title} {tags} {domain}",
             score = Fixed(248).paint(score),
-            title = Fixed(33).paint(story.title),
+            title = Style::new().fg(Fixed(33)).bold().paint(story.title),
             tags = tags,
-            domain = Style::new().italic().paint(domain)
+            domain = Style::new().fg(Fixed(245)).italic().paint(domain)
         );
-        println!("{}", Fixed(245).paint(meta));
+        println!("{}", Fixed(250).paint(meta));
     }
 
     Ok(())
@@ -205,5 +222,36 @@ impl From<lobsters::Error> for Error {
 impl From<chrono::ParseError> for Error {
     fn from(err: chrono::ParseError) -> Self {
         Error::InvalidDate(err)
+    }
+}
+
+impl Colour for Tag {
+    fn colour(&self) -> ansi_term::Colour {
+        if self.tag == "ask" {
+            Fixed(1)
+        } else if self.tag == "meta" {
+            Fixed(252)
+        } else if self.is_media {
+            Fixed(195)
+        } else {
+            Fixed(229)
+        }
+    }
+}
+
+impl TagMap {
+    pub fn new(tags: Vec<Tag>) -> Self {
+        let tags = tags.into_iter().fold(HashMap::new(), |mut map, tag| {
+            map.insert(tag.tag.clone(), tag);
+            map
+        });
+
+        TagMap { tags }
+    }
+
+    pub fn get_coloured<'a>(&self, name: &'a ShortTag) -> Option<ANSIString<'a>> {
+        self.tags
+            .get(&name.0)
+            .map(|tag| tag.colour().paint(name.0.clone()))
     }
 }
