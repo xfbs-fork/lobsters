@@ -110,6 +110,10 @@ impl HttpClient {
             .map_err(|_err| Error::CookieStore)
     }
 
+    pub(super) fn base_url(&self) -> &Url {
+        &self.base_url
+    }
+
     fn cookie_headers(cookies: Arc<Mutex<CookieStore>>, url: &Url) -> HeaderMap {
         // Add cookies to request
         let store = cookies.lock().unwrap();

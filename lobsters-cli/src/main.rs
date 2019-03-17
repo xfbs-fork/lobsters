@@ -1,4 +1,5 @@
 use ansi_term::Colour::Fixed;
+use ansi_term::Style;
 use ansi_term::{ANSIString, ANSIStrings};
 use chrono::prelude::*;
 use chrono_humanize::HumanTime;
@@ -116,6 +117,10 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
 
     for story in stories {
         let score = format!("{:1$}", story.score, digits);
+        let url = match story.url.as_str() {
+            "" => None,
+            url => Some(url.parse::<Url>().map_err(lobsters::Error::from)?),
+        };
         let created_at = story.created_at.parse::<DateTime<FixedOffset>>()?;
         let meta = format!(
             "{:pad$} via {submitter} {when} | {n} comments",
@@ -125,11 +130,25 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
             when = HumanTime::from(created_at),
             n = story.comment_count
         );
+        let tags = std::slice::SliceConcatExt::join(
+            story
+                .tags
+                .iter()
+                .map(|tag| tag.0.as_str())
+                .collect::<Vec<_>>()
+                .as_slice(),
+            " ",
+        );
+        let domain = url
+            .and_then(|url| url.domain().map(|d| d.to_string()))
+            .unwrap_or_else(|| "".to_string());
 
         println!(
-            "{} {}",
-            Fixed(248).paint(score),
-            Fixed(33).paint(story.title)
+            "{score} {title} {tags} {domain}",
+            score = Fixed(248).paint(score),
+            title = Fixed(33).paint(story.title),
+            tags = tags,
+            domain = Style::new().italic().paint(domain)
         );
         println!("{}", Fixed(245).paint(meta));
     }

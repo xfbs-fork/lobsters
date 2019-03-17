@@ -180,6 +180,11 @@ impl Client {
         get_token.and_then(comment)
     }
 
+    /// The base URL of the remote site the client will communicate with
+    pub fn base_url(&self) -> &Url {
+        self.http.base_url()
+    }
+
     fn extract_csrf_token(res: Response) -> impl Future<Item = String, Error = Error> {
         res.into_body()
             .concat2()
