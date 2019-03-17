@@ -167,18 +167,16 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
         match ui.get_input() {
             Some(Input::Character('q')) => break,
             Some(Input::Character('j')) => {
-                // let (mut row, col) = ui.get_cursor_rc();
-                // row += 1;
-                // ui.move_rc(row, col);
-                state.offset += 1;
-                render_buffer.render(&mut ui, state.offset, state.width, state.height);
+                if state.offset + 2 < state.height {
+                    state.offset += 1;
+                    render_buffer.render(&mut ui, state.offset, state.width, state.height);
+                }
             },
             Some(Input::Character('k')) => {
-                // let (mut row, col) = ui.get_cursor_rc();
-                // row -= 1;
-                // ui.move_rc(row, col);
-                state.offset -= 1; // do a checked sub
-                render_buffer.render(&mut ui, state.offset, state.width, state.height);
+                if let Some(new_offset) = state.offset.checked_sub(1) {
+                    state.offset = new_offset;
+                    render_buffer.render(&mut ui, state.offset, state.width, state.height);
+                }
             }
             Some(_) => (),
             None => (),
