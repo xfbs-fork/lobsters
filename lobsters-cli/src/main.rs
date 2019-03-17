@@ -19,6 +19,8 @@ use lobsters::models::{NewComment, ShortTag, StoryId, Tag};
 use lobsters::url::{self, Url};
 use lobsters::Client;
 
+mod util;
+
 trait Colour {
     fn colour(&self) -> ansi_term::Colour;
 }
@@ -60,7 +62,7 @@ struct App {
         short = "b",
         long = "base-url",
         raw(default_value = "lobsters::URL"),
-        parse(try_from_str = "parse_url")
+        parse(try_from_str = "util::parse_url")
     )]
     base_url: Url,
 
@@ -114,7 +116,7 @@ fn main() {
     }
 }
 
-fn login(rt: &mut Runtime, client: Client, options: Login) -> CommandResult {
+fn login(_rt: &mut Runtime, _client: Client, _options: Login) -> CommandResult {
     Ok(())
 }
 
@@ -132,9 +134,8 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
     // Calculate the max number of digits so scores can be padded
     let digits = stories
         .iter()
-        .map(|story| story.score.abs())
+        .map(|story| util::count_digits(story.score))
         .max()
-        .map(|max| f64::from(max).log10().ceil() as usize)
         .unwrap_or(1);
 
     {
@@ -203,12 +204,9 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
     Ok(())
 }
 
-fn comment(rt: &mut Runtime, client: Client, options: Comment) -> CommandResult {
+fn comment(_rt: &mut Runtime, _client: Client, _options: Comment) -> CommandResult {
+    println!("Not implemented yet");
     Ok(())
-}
-
-fn parse_url(src: &str) -> Result<Url, url::ParseError> {
-    src.parse()
 }
 
 // fn old() {
