@@ -5,6 +5,14 @@ authors = ["Wesley Moore <wes@wezm.net>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.1"
+ansi_term = "0.11"
+chrono = "0.4"
+chrono-humanize = "0.0.11"
 lobsters = { path = "../lobsters" }
+futures = "0.1"
+structopt = "0.2"
 tokio = "<= 1.0"
+
+[[bin]]
+name = "lobsters"
+path = "src/main.rs"
