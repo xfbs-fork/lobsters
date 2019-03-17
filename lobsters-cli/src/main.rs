@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::{stdin, stdout, Write};
 
 use ansi_term::Colour::Fixed;
 use ansi_term::Style;
@@ -7,6 +8,10 @@ use chrono::prelude::*;
 use chrono_humanize::HumanTime;
 use futures::future::{Future, IntoFuture};
 use structopt::StructOpt;
+use termion::event::Key;
+use termion::input::TermRead;
+use termion::raw::IntoRawMode;
+use termion::screen::AlternateScreen;
 use tokio::runtime::Runtime;
 
 use lobsters::client::Page;
@@ -132,42 +137,67 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
         .map(|max| f64::from(max).log10().ceil() as usize)
         .unwrap_or(1);
 
-    for story in stories {
-        let score = format!("{:1$}", story.score, digits);
-        let url = match story.url.as_str() {
-            "" => None,
-            url => Some(url.parse::<Url>().map_err(lobsters::Error::from)?),
-        };
-        let created_at = story.created_at.parse::<DateTime<FixedOffset>>()?;
-        let meta = format!(
-            "{:pad$} via {submitter} {when} | {n} comments",
-            " ",
-            pad = digits,
-            submitter = story.submitter_user.username,
-            when = HumanTime::from(created_at),
-            n = story.comment_count
-        );
-        let tags = std::slice::SliceConcatExt::join(
-            story
-                .tags
-                .iter()
-                .filter_map(|tag| tag_map.get_coloured(tag).map(|tag| tag.to_string()))
-                .collect::<Vec<_>>()
-                .as_slice(),
-            " ",
-        );
-        let domain = url
-            .and_then(|url| url.domain().map(|d| d.to_string()))
-            .unwrap_or_else(|| "".to_string());
+    {
+        let screen = AlternateScreen::from(stdout());
+        let mut screen = screen.into_raw_mode().map_err(lobsters::Error::Io)?;
+        let stdin = stdin();
 
-        println!(
-            "{score} {title} {tags} {domain}",
-            score = Fixed(248).paint(score),
-            title = Style::new().fg(Fixed(33)).bold().paint(story.title),
-            tags = tags,
-            domain = Style::new().fg(Fixed(245)).italic().paint(domain)
-        );
-        println!("{}", Fixed(250).paint(meta));
+        for story in stories {
+            let score = format!("{:1$}", story.score, digits);
+            let url = match story.url.as_str() {
+                "" => None,
+                url => Some(url.parse::<Url>().map_err(lobsters::Error::from)?),
+            };
+            let created_at = story.created_at.parse::<DateTime<FixedOffset>>()?;
+            let meta = format!(
+                "{:pad$} via {submitter} {when} | {n} comments",
+                " ",
+                pad = digits,
+                submitter = story.submitter_user.username,
+                when = HumanTime::from(created_at),
+                n = story.comment_count
+            );
+            let tags = std::slice::SliceConcatExt::join(
+                story
+                    .tags
+                    .iter()
+                    .filter_map(|tag| tag_map.get_coloured(tag).map(|tag| tag.to_string()))
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+                " ",
+            );
+            let domain = url
+                .and_then(|url| url.domain().map(|d| d.to_string()))
+                .unwrap_or_else(|| "".to_string());
+
+            write!(
+                screen,
+                "{score} {title} {tags} {domain}\r\n",
+                score = Fixed(248).paint(score),
+                title = Style::new().fg(Fixed(33)).bold().paint(story.title),
+                tags = tags,
+                domain = Style::new().fg(Fixed(245)).italic().paint(domain)
+            )
+            .map_err(lobsters::Error::Io)?;
+            write!(screen, "{}\r\n", Fixed(250).paint(meta)).map_err(lobsters::Error::Io)?;
+        }
+
+        for c in stdin.keys() {
+            match c.unwrap() {
+                Key::Char('q') => break,
+                // Key::Char(c) => println!("{}", c),
+                // Key::Alt(c) => println!("^{}", c),
+                // Key::Ctrl(c) => println!("*{}", c),
+                // Key::Esc => println!("ESC"),
+                // Key::Left => println!("←"),
+                // Key::Right => println!("→"),
+                // Key::Up => println!("↑"),
+                // Key::Down => println!("↓"),
+                // Key::Backspace => println!("×"),
+                _ => (),
+            }
+            // stdout.flush().unwrap();
+        }
     }
 
     Ok(())
