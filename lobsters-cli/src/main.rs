@@ -19,7 +19,7 @@ use lobsters::models::{NewComment, ShortTag, StoryId, Tag};
 use lobsters::url::{self, Url};
 use lobsters::Client;
 
-mod util;
+use lobsters_cli::util;
 
 trait Colour {
     fn colour(&self) -> ansi_term::Colour;
