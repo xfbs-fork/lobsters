@@ -62,6 +62,11 @@ impl Fancy {
         self
     }
 
+    /// The span is empty if the text is empty
+    pub fn is_empty(&self) -> bool {
+        self.text.is_empty()
+    }
+
     /// The number of columns the text will need
     pub fn cols(&self) -> usize {
         // str_width can return None if there are non-printable characters in string... not quite
@@ -73,6 +78,7 @@ impl Fancy {
     pub fn truncate(&self, cols: usize) -> Self {
         let mut truncated = self.clone();
         let mut new_len = 0;
+
         truncated.text = truncated
             .text
             .chars()
@@ -81,6 +87,24 @@ impl Fancy {
                 new_len < cols
             })
             .collect();
+
+        truncated
+    }
+
+    /// Removes `cols` of text from the start of the string preserving formatting
+    pub fn truncate_front(&self, cols: usize) -> Self {
+        let mut truncated = self.clone();
+        let mut removed = 0;
+
+        truncated.text = truncated
+            .text
+            .chars()
+            .skip_while(|c| {
+                removed += usize::from(wcwidth::char_width(*c).unwrap_or(0));
+                removed < cols
+            })
+            .collect();
+
         truncated
     }
 }

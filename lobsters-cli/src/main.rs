@@ -187,15 +187,15 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
                     }
                 }
                 Key::Char('h') => {
+                    // TODO: Limit the number of rows
+                    col_offset += 10;
+                    render_lines(&lines, &mut screen, row_offset, col_offset)?;
+                }
+                Key::Char('l') => {
                     if let Some(new_offset) = col_offset.checked_sub(10) {
                         col_offset = new_offset;
                         render_lines(&lines, &mut screen, row_offset, col_offset)?;
                     }
-                }
-                Key::Char('l') => {
-                    // TODO: Limit the number of rows
-                    col_offset += 10;
-                    render_lines(&lines, &mut screen, row_offset, col_offset)?;
                 }
                 // Key::Char(c) => println!("{}", c),
                 // Key::Alt(c) => println!("^{}", c),
@@ -296,20 +296,38 @@ fn render_lines<W: Write>(
     let empty_line = vec![0x20; width];
 
     write!(screen, "{}", termion::cursor::Goto(1, 1))?;
-    for (row, line) in lines
+
+    let scoped_lines = lines
         .iter()
         .skip(row_offset)
         .take(usize::from(height))
-        .enumerate()
-    {
+        .map(|line| {
+            let cols_remaining = col_offset;
+
+            line.iter().filter_map(move |span| {
+                if cols_remaining > 0 {
+                    let span = span.truncate_front(cols_remaining);
+                    if span.is_empty() {
+                        None
+                    } else {
+                        Some(span)
+                    }
+                } else {
+                    Some(span.clone()) // FIXME: clone
+                }
+            })
+        });
+
+    for (row, line) in scoped_lines.enumerate() {
         let mut col: usize = 0;
 
         if row != 0 {
             write!(screen, "\r\n")?;
         }
-        for (i, span) in line.iter().enumerate() {
+        for (i, span) in line.enumerate() {
             let space = if i != 0 { " " } else { "" };
             let span_cols = span.cols() + space.len();
+
             if col + span_cols < width {
                 write!(screen, "{}{}", space, span)?;
                 write!(log, "{}: {}{}\n", col, space, span)?;
