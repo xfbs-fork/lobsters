@@ -1,66 +1,72 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::io::{self, stdin, stdout, Write};
+use std::str::FromStr;
 
-use ansi_term::Colour::Fixed;
-use ansi_term::Style;
-use ansi_term::{ANSIString, ANSIStrings};
 use chrono::prelude::*;
 use chrono_humanize::HumanTime;
-use futures::future::{Future, IntoFuture};
+use futures::future::Future;
 use structopt::StructOpt;
-use termion::color::{Bg, Color, Fg};
+use termion::color::Color;
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 use termion::scroll;
-use termion::style::{Bold, Italic, NoBold, NoItalic, NoUnderline, Underline};
 use tokio::runtime::Runtime;
 
 use lobsters::client::Page;
-use lobsters::models::{NewComment, ShortTag, Story, StoryId, Tag};
-use lobsters::url::{self, Url};
+use lobsters::models::{ShortTag, Story, Tag};
+use lobsters::url::Url;
 use lobsters::Client;
 
 use lobsters_cli::{
     text::Fancy,
-    theme::{Theme, LOBSTERS_256},
+    theme::{Theme, LOBSTERS_256, LOBSTERS_GREY, LOBSTERS_MONO, LOBSTERS_TRUE},
     util,
 };
 
+#[derive(Debug)]
 enum Error {
     Lobsters(lobsters::Error),
     InvalidDate(chrono::ParseError),
 }
 
+#[derive(Debug)]
+struct ParseThemeError(String);
+
 #[derive(Debug, StructOpt)]
 enum Command {
+    /// Login with username and password to customise view
     #[structopt(name = "login")]
     Login(Login),
+    /// View front page stories (this is the default)
     #[structopt(name = "stories")]
     Stories(Stories),
-    #[structopt(name = "comment")]
-    Comment(Comment),
 }
 
 #[derive(Debug, StructOpt)]
 struct Login {}
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Default, StructOpt)]
 struct Stories {
+    /// Page to view
     #[structopt(short = "p", long = "page")]
     page: Option<u32>,
+
+    /// Theme to use. Options: true, 256, grey or gray, mono
+    #[structopt(
+        short = "t",
+        long = "theme",
+        default_value = "256",
+        parse(try_from_str)
+    )]
+    theme: UiTheme,
 }
 
 #[derive(Debug, StructOpt)]
-struct Comment {}
-
-#[derive(Debug, StructOpt)]
-#[structopt(
-    name = "lobsters",
-    about = "A command line client for the Lobsters website (https://lobste.rs/)"
-)]
 struct App {
+    /// Base URL of the remote site
     #[structopt(
         short = "b",
         long = "base-url",
@@ -69,8 +75,16 @@ struct App {
     )]
     base_url: Url,
 
-    #[structopt(subcommand)] // Note that we mark a field as a subcommand
-    command: Command,
+    #[structopt(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Debug)]
+enum UiTheme {
+    Grey,
+    Color256,
+    Mono,
+    TrueColor,
 }
 
 type CommandResult = Result<(), Error>;
@@ -85,10 +99,9 @@ fn main() {
     let mut rt = Runtime::new().unwrap();
     let client = Client::new(app.base_url).expect("error creating client");
 
-    let result = match app.command {
+    let result = match app.command.unwrap_or_default() {
         Command::Login(options) => login(&mut rt, client, options),
         Command::Stories(options) => stories(&mut rt, client, options),
-        Command::Comment(options) => comment(&mut rt, client, options),
     };
 
     match &result {
@@ -121,6 +134,7 @@ fn main() {
 }
 
 fn login(_rt: &mut Runtime, _client: Client, _options: Login) -> CommandResult {
+    //     // let login = client.login(username, password);
     Ok(())
 }
 
@@ -223,7 +237,13 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
         let mut screen = screen.into_raw_mode()?;
         let stdin = stdin();
 
-        let lines = render_stories(&stories, &tag_map, &LOBSTERS_256)?;
+        // FIXME: This is terrible
+        let lines = match options.theme {
+            UiTheme::Color256 => render_stories(&stories, &tag_map, &LOBSTERS_256)?,
+            UiTheme::TrueColor => render_stories(&stories, &tag_map, &LOBSTERS_TRUE)?,
+            UiTheme::Mono => render_stories(&stories, &tag_map, &LOBSTERS_MONO)?,
+            UiTheme::Grey => render_stories(&stories, &tag_map, &LOBSTERS_GREY)?,
+        };
 
         // TODO: Proper rendering
         for line in lines {
@@ -265,43 +285,6 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
     Ok(())
 }
 
-fn comment(_rt: &mut Runtime, _client: Client, _options: Comment) -> CommandResult {
-    println!("Not implemented yet");
-    Ok(())
-}
-
-// fn old() {
-
-//     // let work = client.index(None);
-//     // let stories = rt.block_on(work).expect("error fetching stories");
-//     // dbg!(&stories);
-
-//     // https://lobste.rs/s/yon0hz/rebuilding_my_personal_infrastructure
-//     let story_id = StoryId("d6qvya".to_string());
-//     let work = client.story(&story_id);
-//     let story = rt.block_on(work).expect("error fetching story");
-//     dbg!(&story);
-
-//     let comment = NewComment {
-//         story_id: story_id,
-//         comment: "Hello from Rust!".to_string(),
-//         hat_id: None,
-//         parent_comment_short_id: None,
-//     };
-
-//     // let login = client.login(username, password);
-//     let create_comment = client.post_comment(comment);
-//     // let work = login.and_then(|_res| create_comment);
-//     let comment_url = rt.block_on(create_comment).expect("error posting comment");
-
-//     if let Some(comment_url) = comment_url {
-//         println!("Comment posted: {}", comment_url);
-//     }
-
-//     client.save_cookies().expect("unable to save cookies");
-// }
-//
-
 impl From<lobsters::Error> for Error {
     fn from(err: lobsters::Error) -> Self {
         Error::Lobsters(err)
@@ -332,5 +315,41 @@ impl TagMap {
 
     pub fn get<'a>(&'a self, name: &ShortTag) -> Option<&'a Tag> {
         self.tags.get(&name.0)
+    }
+}
+
+impl FromStr for UiTheme {
+    type Err = ParseThemeError;
+
+    fn from_str(theme: &str) -> Result<Self, Self::Err> {
+        match theme {
+            "true" => Ok(UiTheme::TrueColor),
+            "256" => Ok(UiTheme::Color256),
+            "mono" => Ok(UiTheme::Mono),
+            "grey" | "gray" => Ok(UiTheme::Grey),
+            _ => Err(ParseThemeError(theme.to_string())),
+        }
+    }
+}
+
+impl Default for UiTheme {
+    fn default() -> Self {
+        UiTheme::Color256
+    }
+}
+
+impl fmt::Display for ParseThemeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "'{}' is not a valid theme. Options are: true, 256, mono, grey or gray",
+            self.0
+        )
+    }
+}
+
+impl Default for Command {
+    fn default() -> Self {
+        Command::Stories(Stories::default())
     }
 }
