@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{stdin, stdout, Write};
+use std::io::{self, stdin, stdout, Write};
 
 use ansi_term::Colour::Fixed;
 use ansi_term::Style;
@@ -8,22 +8,25 @@ use chrono::prelude::*;
 use chrono_humanize::HumanTime;
 use futures::future::{Future, IntoFuture};
 use structopt::StructOpt;
+use termion::color::{Bg, Color, Fg};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
+use termion::scroll;
+use termion::style::{Bold, Italic, NoBold, NoItalic, NoUnderline, Underline};
 use tokio::runtime::Runtime;
 
 use lobsters::client::Page;
-use lobsters::models::{NewComment, ShortTag, StoryId, Tag};
+use lobsters::models::{NewComment, ShortTag, Story, StoryId, Tag};
 use lobsters::url::{self, Url};
 use lobsters::Client;
 
-use lobsters_cli::util;
-
-trait Colour {
-    fn colour(&self) -> ansi_term::Colour;
-}
+use lobsters_cli::{
+    text::Fancy,
+    theme::{Theme, LOBSTERS_256},
+    util,
+};
 
 enum Error {
     Lobsters(lobsters::Error),
@@ -71,6 +74,7 @@ struct App {
 }
 
 type CommandResult = Result<(), Error>;
+type Line = Vec<Fancy>;
 
 struct TagMap {
     tags: HashMap<String, Tag>,
@@ -120,16 +124,32 @@ fn login(_rt: &mut Runtime, _client: Client, _options: Login) -> CommandResult {
     Ok(())
 }
 
-fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult {
-    let page = Page::new(options.page.unwrap_or(1));
-    let future_stories = client.index(page);
-    let future_tags = client.tags();
-    let work = future_tags.join(future_stories);
-
-    // Fetch tags and stories in parallel
-    let (tags, stories) = rt.block_on(work)?;
-
-    let tag_map = TagMap::new(tags);
+// Yes this is completely ridiculous... need to build better colour handling
+fn render_stories<
+    Score: 'static,
+    Title: 'static,
+    Meta: 'static,
+    Ask: 'static,
+    Media: 'static,
+    Tag: 'static,
+    Domain: 'static,
+    Metadata: 'static,
+>(
+    stories: &[Story],
+    tag_map: &TagMap,
+    theme: &Theme<Score, Title, Meta, Ask, Media, Tag, Domain, Metadata>,
+) -> Result<Vec<Line>, Error>
+where
+    Score: Color + Copy,
+    Title: Color + Copy,
+    Meta: Color + Copy,
+    Ask: Color + Copy,
+    Media: Color + Copy,
+    Tag: Color + Copy,
+    Domain: Color + Copy,
+    Metadata: Color + Copy,
+{
+    let mut lines = Vec::new();
 
     // Calculate the max number of digits so scores can be padded
     let digits = stories
@@ -138,54 +158,95 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
         .max()
         .unwrap_or(1);
 
+    for story in stories {
+        // TODO: Map empty strings to None when parsing response
+        let url = match story.url.as_str() {
+            "" => None,
+            url => Some(url.parse::<Url>().map_err(lobsters::Error::from)?),
+        };
+        let created_at = story.created_at.parse::<DateTime<FixedOffset>>()?;
+        let meta = format!(
+            "{:pad$} via {submitter} {when} | {n} comments",
+            " ",
+            pad = digits,
+            submitter = story.submitter_user.username,
+            when = HumanTime::from(created_at),
+            n = story.comment_count
+        );
+        let domain = Fancy::new(
+            url.and_then(|url| url.domain().map(|d| d.to_string()))
+                .unwrap_or_else(|| "".to_string()),
+        )
+        .fg(theme.domain())
+        .italic();
+
+        let score = Fancy::new(format!("{:1$}", story.score, digits)).fg(theme.score());
+        let title = Fancy::new(format!("{}", story.title))
+            .fg(theme.title())
+            .bold();
+        let tags = story
+            .tags
+            .iter()
+            .filter_map(|tag| tag_map.get(tag))
+            .map(|tag| Fancy::new(tag.tag.as_str()).fg(theme.tag_colour(tag)));
+
+        let mut line = Line::new();
+        line.push(score);
+        line.push(title);
+        line.extend(tags);
+        line.push(domain);
+        lines.push(line);
+
+        // Add meta line
+        lines.push(vec![Fancy::new(meta).fg(theme.metadata())]);
+    }
+
+    Ok(lines)
+}
+
+fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult {
+    let page = Page::new(options.page.unwrap_or(1));
+    let future_stories = client.index(page);
+    let future_tags = client.tags();
+    let work = future_tags.join(future_stories);
+
+    // Fetch tags and stories in parallel
+    print!("Loading...");
+    stdout().flush()?;
+    let (tags, stories) = rt.block_on(work)?;
+    println!(" done.");
+
+    let tag_map = TagMap::new(tags);
+
     {
         let screen = AlternateScreen::from(stdout());
-        let mut screen = screen.into_raw_mode().map_err(lobsters::Error::Io)?;
+        let mut screen = screen.into_raw_mode()?;
         let stdin = stdin();
 
-        for story in stories {
-            let score = format!("{:1$}", story.score, digits);
-            let url = match story.url.as_str() {
-                "" => None,
-                url => Some(url.parse::<Url>().map_err(lobsters::Error::from)?),
-            };
-            let created_at = story.created_at.parse::<DateTime<FixedOffset>>()?;
-            let meta = format!(
-                "{:pad$} via {submitter} {when} | {n} comments",
-                " ",
-                pad = digits,
-                submitter = story.submitter_user.username,
-                when = HumanTime::from(created_at),
-                n = story.comment_count
-            );
-            let tags = std::slice::SliceConcatExt::join(
-                story
-                    .tags
-                    .iter()
-                    .filter_map(|tag| tag_map.get_coloured(tag).map(|tag| tag.to_string()))
-                    .collect::<Vec<_>>()
-                    .as_slice(),
-                " ",
-            );
-            let domain = url
-                .and_then(|url| url.domain().map(|d| d.to_string()))
-                .unwrap_or_else(|| "".to_string());
+        let lines = render_stories(&stories, &tag_map, &LOBSTERS_256)?;
 
-            write!(
-                screen,
-                "{score} {title} {tags} {domain}\r\n",
-                score = Fixed(248).paint(score),
-                title = Style::new().fg(Fixed(33)).bold().paint(story.title),
-                tags = tags,
-                domain = Style::new().fg(Fixed(245)).italic().paint(domain)
-            )
-            .map_err(lobsters::Error::Io)?;
-            write!(screen, "{}\r\n", Fixed(250).paint(meta)).map_err(lobsters::Error::Io)?;
+        // TODO: Proper rendering
+        for line in lines {
+            for (i, span) in line.iter().enumerate() {
+                if i != 0 {
+                    write!(screen, " {}", span)
+                } else {
+                    write!(screen, "{}", span)
+                }?;
+            }
+
+            write!(screen, "\r\n")?;
         }
 
         for c in stdin.keys() {
             match c.unwrap() {
                 Key::Char('q') => break,
+                Key::Char('j') => {
+                    write!(screen, "{}", scroll::Up(1))?;
+                }
+                Key::Char('k') => {
+                    write!(screen, "{}", scroll::Down(1))?;
+                }
                 // Key::Char(c) => println!("{}", c),
                 // Key::Alt(c) => println!("^{}", c),
                 // Key::Ctrl(c) => println!("*{}", c),
@@ -253,17 +314,9 @@ impl From<chrono::ParseError> for Error {
     }
 }
 
-impl Colour for Tag {
-    fn colour(&self) -> ansi_term::Colour {
-        if self.tag == "ask" {
-            Fixed(1)
-        } else if self.tag == "meta" {
-            Fixed(252)
-        } else if self.is_media {
-            Fixed(195)
-        } else {
-            Fixed(229)
-        }
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Self {
+        Error::Lobsters(lobsters::Error::Io(err))
     }
 }
 
@@ -277,9 +330,7 @@ impl TagMap {
         TagMap { tags }
     }
 
-    pub fn get_coloured<'a>(&self, name: &'a ShortTag) -> Option<ANSIString<'a>> {
-        self.tags
-            .get(&name.0)
-            .map(|tag| tag.colour().paint(name.0.clone()))
+    pub fn get<'a>(&'a self, name: &ShortTag) -> Option<&'a Tag> {
+        self.tags.get(&name.0)
     }
 }

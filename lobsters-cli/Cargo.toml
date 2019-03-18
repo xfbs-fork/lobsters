@@ -13,6 +13,7 @@ futures = "0.1"
 structopt = "0.2"
 termion = "1.5"
 tokio = "<= 1.0"
+wcwidth = "1.0"
 
 [[bin]]
 name = "lobsters"
