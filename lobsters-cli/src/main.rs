@@ -293,6 +293,8 @@ fn render_lines<W: Write>(
             .join(" ")
     )?;
 
+    let empty_line = vec![0x20; width];
+
     write!(screen, "{}", termion::cursor::Goto(1, 1))?;
     for (row, line) in lines
         .iter()
@@ -330,7 +332,7 @@ fn render_lines<W: Write>(
         // Erase the rest of the line
         // This is done in favor of ClearAll to reduce flicker
         if col < width {
-            screen.write_all(&vec![0x20; width - col])?;
+            screen.write_all(&empty_line[0..width - col])?;
         }
     }
 
