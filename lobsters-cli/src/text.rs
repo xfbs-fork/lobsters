@@ -1,7 +1,9 @@
 use std::fmt::{self, Display};
 
-use termion::color::{Bg, Color as Colour, Fg};
+use termion::color::{Bg, Fg};
 use termion::style::{Bold, Italic, NoBold, NoItalic, NoUnderline, Underline};
+
+use crate::theme::Colour;
 
 /// Fancy text (styled)
 ///
@@ -15,8 +17,8 @@ use termion::style::{Bold, Italic, NoBold, NoItalic, NoUnderline, Underline};
 // Not sure about these trait objects but they work for now
 pub struct Fancy {
     text: String,
-    fg: Option<Box<dyn Colour>>,
-    bg: Option<Box<dyn Colour>>,
+    fg: Option<Colour>,
+    bg: Option<Colour>,
     bold: bool,
     italic: bool,
     underline: bool,
@@ -34,12 +36,12 @@ impl Fancy {
         }
     }
 
-    pub fn fg(mut self, colour: Box<dyn Colour>) -> Self {
+    pub fn fg(mut self, colour: Colour) -> Self {
         self.fg = Some(colour);
         self
     }
 
-    pub fn bg(mut self, colour: Box<dyn Colour>) -> Self {
+    pub fn bg(mut self, colour: Colour) -> Self {
         self.bg = Some(colour);
         self
     }
@@ -64,10 +66,10 @@ impl Display for Fancy {
     // This is not exactly efficient generation of escape sequences but will do for now.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(colour) = &self.bg {
-            write!(f, "{}", Bg(colour.as_ref()))?;
+            write!(f, "{}", Bg(*colour))?;
         }
         if let Some(colour) = &self.fg {
-            write!(f, "{}", Fg(colour.as_ref()))?;
+            write!(f, "{}", Fg(*colour))?;
         }
         if self.bold {
             write!(f, "{}", Bold)?;

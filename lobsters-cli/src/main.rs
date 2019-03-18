@@ -7,7 +7,6 @@ use chrono::prelude::*;
 use chrono_humanize::HumanTime;
 use futures::future::Future;
 use structopt::StructOpt;
-use termion::color::Color;
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
@@ -138,31 +137,7 @@ fn login(_rt: &mut Runtime, _client: Client, _options: Login) -> CommandResult {
     Ok(())
 }
 
-// Yes this is completely ridiculous... need to build better colour handling
-fn render_stories<
-    Score: 'static,
-    Title: 'static,
-    Meta: 'static,
-    Ask: 'static,
-    Media: 'static,
-    Tag: 'static,
-    Domain: 'static,
-    Metadata: 'static,
->(
-    stories: &[Story],
-    tag_map: &TagMap,
-    theme: &Theme<Score, Title, Meta, Ask, Media, Tag, Domain, Metadata>,
-) -> Result<Vec<Line>, Error>
-where
-    Score: Color + Copy,
-    Title: Color + Copy,
-    Meta: Color + Copy,
-    Ask: Color + Copy,
-    Media: Color + Copy,
-    Tag: Color + Copy,
-    Domain: Color + Copy,
-    Metadata: Color + Copy,
-{
+fn render_stories(stories: &[Story], tag_map: &TagMap, theme: &Theme) -> Result<Vec<Line>, Error> {
     let mut lines = Vec::new();
 
     // Calculate the max number of digits so scores can be padded
@@ -172,7 +147,7 @@ where
         .max()
         .unwrap_or(1);
 
-    for story in stories {
+    for story in stories.iter().take(5) {
         // TODO: Map empty strings to None when parsing response
         let url = match story.url.as_str() {
             "" => None,
@@ -191,12 +166,12 @@ where
             url.and_then(|url| url.domain().map(|d| d.to_string()))
                 .unwrap_or_else(|| "".to_string()),
         )
-        .fg(theme.domain())
+        .fg(theme.domain)
         .italic();
 
-        let score = Fancy::new(format!("{:1$}", story.score, digits)).fg(theme.score());
+        let score = Fancy::new(format!("{:1$}", story.score, digits)).fg(theme.score);
         let title = Fancy::new(format!("{}", story.title))
-            .fg(theme.title())
+            .fg(theme.title)
             .bold();
         let tags = story
             .tags
@@ -212,7 +187,7 @@ where
         lines.push(line);
 
         // Add meta line
-        lines.push(vec![Fancy::new(meta).fg(theme.metadata())]);
+        lines.push(vec![Fancy::new(meta).fg(theme.metadata)]);
     }
 
     Ok(lines)
