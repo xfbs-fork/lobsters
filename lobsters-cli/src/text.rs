@@ -15,6 +15,7 @@ use crate::theme::Colour;
 /// let fancy_text = Fancy::new("Hello").fg(Box::new(termion::color::Red)).bold();
 /// ```
 // Not sure about these trait objects but they work for now
+#[derive(Clone)]
 pub struct Fancy {
     text: String,
     fg: Option<Colour>,
@@ -59,6 +60,28 @@ impl Fancy {
     pub fn underline(mut self) -> Self {
         self.underline = true;
         self
+    }
+
+    /// The number of columns the text will need
+    pub fn cols(&self) -> usize {
+        // str_width can return None if there are non-printable characters in string... not quite
+        // sure how that should be handled right now
+        wcwidth::str_width(&self.text).unwrap_or(0)
+    }
+
+    /// Truncates the text to the supplied length preserving formatting
+    pub fn truncate(&self, cols: usize) -> Self {
+        let mut truncated = self.clone();
+        let mut new_len = 0;
+        truncated.text = truncated
+            .text
+            .chars()
+            .take_while(|c| {
+                new_len += usize::from(wcwidth::char_width(*c).unwrap_or(0));
+                new_len < cols
+            })
+            .collect();
+        truncated
     }
 }
 

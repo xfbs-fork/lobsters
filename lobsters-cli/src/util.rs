@@ -1,5 +1,9 @@
 use lobsters::url::{self, Url};
 
+pub fn as_usize((x, y): (u16, u16)) -> (usize, usize) {
+    (usize::from(x), usize::from(y))
+}
+
 pub fn parse_url(src: &str) -> Result<Url, url::ParseError> {
     src.parse()
 }

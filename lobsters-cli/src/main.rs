@@ -7,11 +7,11 @@ use chrono::prelude::*;
 use chrono_humanize::HumanTime;
 use futures::future::Future;
 use structopt::StructOpt;
+use termion::cursor;
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::AlternateScreen;
-use termion::scroll;
 use tokio::runtime::Runtime;
 
 use lobsters::client::Page;
@@ -149,12 +149,16 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
     stdout().flush()?;
     let (tags, stories) = rt.block_on(work)?;
     println!(" done.");
+    let (width, height) = util::as_usize(termion::terminal_size()?);
 
     let tag_map = TagMap::new(tags);
+    let mut row_offset = 0;
+    let mut col_offset = 0;
 
     {
         let screen = AlternateScreen::from(stdout());
         let mut screen = screen.into_raw_mode()?;
+        write!(screen, "{}", cursor::Hide)?;
         let stdin = stdin();
 
         // FIXME: This is terrible
@@ -165,16 +169,33 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
             UiTheme::Grey => render_stories(&stories, &tag_map, &LOBSTERS_GREY)?,
         };
 
-        render_lines(&lines, &mut screen)?;
+        render_lines(&lines, &mut screen, row_offset, col_offset)?;
 
         for c in stdin.keys() {
             match c.unwrap() {
                 Key::Char('q') => break,
                 Key::Char('j') => {
-                    write!(screen, "{}", scroll::Up(1))?;
+                    if lines.len() - row_offset > height {
+                        row_offset += 1;
+                        render_lines(&lines, &mut screen, row_offset, col_offset)?;
+                    }
                 }
                 Key::Char('k') => {
-                    write!(screen, "{}", scroll::Down(1))?;
+                    if let Some(new_offset) = row_offset.checked_sub(1) {
+                        row_offset = new_offset;
+                        render_lines(&lines, &mut screen, row_offset, col_offset)?;
+                    }
+                }
+                Key::Char('h') => {
+                    if let Some(new_offset) = col_offset.checked_sub(10) {
+                        col_offset = new_offset;
+                        render_lines(&lines, &mut screen, row_offset, col_offset)?;
+                    }
+                }
+                Key::Char('l') => {
+                    // TODO: Limit the number of rows
+                    col_offset += 10;
+                    render_lines(&lines, &mut screen, row_offset, col_offset)?;
                 }
                 // Key::Char(c) => println!("{}", c),
                 // Key::Alt(c) => println!("^{}", c),
@@ -189,6 +210,8 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
             }
             // stdout.flush().unwrap();
         }
+
+        write!(screen, "{}", cursor::Show)?;
     }
 
     Ok(())
@@ -204,7 +227,7 @@ fn render_stories(stories: &[Story], tag_map: &TagMap, theme: &Theme) -> Result<
         .max()
         .unwrap_or(1);
 
-    for story in stories.iter().take(5) {
+    for story in stories {
         // TODO: Map empty strings to None when parsing response
         let url = match story.url.as_str() {
             "" => None,
@@ -250,20 +273,68 @@ fn render_stories(stories: &[Story], tag_map: &TagMap, theme: &Theme) -> Result<
     Ok(lines)
 }
 
-fn render_lines<W: Write>(lines: &[Line], screen: &mut RawTerminal<W>) -> Result<(), Error> {
-    for line in lines {
+/// Render the lines with offset (x, y)
+fn render_lines<W: Write>(
+    lines: &[Line],
+    screen: &mut RawTerminal<W>,
+    row_offset: usize,
+    col_offset: usize,
+) -> Result<(), Error> {
+    let (width, height) = util::as_usize(termion::terminal_size()?);
+    let mut log = std::fs::File::create("render.log")?;
+    write!(log, "Terminal dimensions: {:?}\n", (width, height))?;
+    write!(
+        log,
+        "Line 1 {}\n",
+        lines[0]
+            .iter()
+            .map(|f| f.to_string())
+            .collect::<Vec<_>>()
+            .join(" ")
+    )?;
+
+    write!(screen, "{}", termion::cursor::Goto(1, 1))?;
+    for (row, line) in lines
+        .iter()
+        .skip(row_offset)
+        .take(usize::from(height))
+        .enumerate()
+    {
+        let mut col: usize = 0;
+
+        if row != 0 {
+            write!(screen, "\r\n")?;
+        }
         for (i, span) in line.iter().enumerate() {
-            if i != 0 {
-                write!(screen, " {}", span)
+            let space = if i != 0 { " " } else { "" };
+            let span_cols = span.cols() + space.len();
+            if col + span_cols < width {
+                write!(screen, "{}{}", space, span)?;
+                write!(log, "{}: {}{}\n", col, space, span)?;
+                col += span_cols;
             } else {
-                write!(screen, "{}", span)
-            }?;
+                let truncate_cols = 1 + width - col - space.len();
+                write!(screen, "{}{}", space, span.truncate(truncate_cols))?;
+                write!(
+                    log,
+                    "{} (t): {}{}\n",
+                    col,
+                    space,
+                    span.truncate(width - col)
+                )?;
+                col += truncate_cols;
+                break;
+            }
         }
 
-        write!(screen, "\r\n")?;
+        // Erase the rest of the line
+        // This is done in favor of ClearAll to reduce flicker
+        if col < width {
+            screen.write_all(&vec![0x20; width - col])?;
+        }
     }
 
-    Ok(())
+    screen.flush().map_err(Error::from)
 }
 
 impl From<lobsters::Error> for Error {
