@@ -187,7 +187,7 @@ fn render_stories(stories: &[Story], tag_map: &TagMap, theme: &Theme) -> Result<
         lines.push(line);
 
         // Add meta line
-        lines.push(vec![Fancy::new(meta).fg(theme.metadata)]);
+        lines.push(vec![Fancy::new(meta).fg(theme.byline)]);
     }
 
     Ok(lines)

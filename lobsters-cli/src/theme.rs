@@ -19,7 +19,7 @@ pub struct Theme {
     pub normal_tag: Colour,
     pub title: Colour,
     pub domain: Colour,
-    pub metadata: Colour,
+    pub byline: Colour,
 }
 
 pub static LOBSTERS_MONO: Theme = Theme {
@@ -30,7 +30,7 @@ pub static LOBSTERS_MONO: Theme = Theme {
     normal_tag: Colour::White,
     title: Colour::White,
     domain: Colour::White,
-    metadata: Colour::White,
+    byline: Colour::White,
 };
 
 pub static LOBSTERS_GREY: Theme = Theme {
@@ -41,7 +41,7 @@ pub static LOBSTERS_GREY: Theme = Theme {
     normal_tag: Colour::Ansi(AnsiValue(252)),
     title: Colour::Ansi(AnsiValue(254)),
     domain: Colour::Ansi(AnsiValue(245)),
-    metadata: Colour::Ansi(AnsiValue(250)),
+    byline: Colour::Ansi(AnsiValue(250)),
 };
 
 pub static LOBSTERS_256: Theme = Theme {
@@ -52,7 +52,7 @@ pub static LOBSTERS_256: Theme = Theme {
     normal_tag: Colour::Ansi(AnsiValue(229)),
     title: Colour::Ansi(AnsiValue(33)),
     domain: Colour::Ansi(AnsiValue(245)),
-    metadata: Colour::Ansi(AnsiValue(250)),
+    byline: Colour::Ansi(AnsiValue(250)),
 };
 
 pub static LOBSTERS_TRUE: Theme = Theme {
@@ -63,7 +63,7 @@ pub static LOBSTERS_TRUE: Theme = Theme {
     normal_tag: Colour::Rgb(Rgb(213, 212, 88)),
     title: Colour::Rgb(Rgb(37, 98, 220)),
     domain: Colour::Rgb(Rgb(153, 153, 153)), // On the site this is actually the same as metadata
-    metadata: Colour::Rgb(Rgb(136, 136, 136)),
+    byline: Colour::Rgb(Rgb(136, 136, 136)),
 };
 
 impl Theme {
