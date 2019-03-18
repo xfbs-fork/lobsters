@@ -9,7 +9,7 @@ use futures::future::Future;
 use structopt::StructOpt;
 use termion::event::Key;
 use termion::input::TermRead;
-use termion::raw::IntoRawMode;
+use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::AlternateScreen;
 use termion::scroll;
 use tokio::runtime::Runtime;
@@ -88,6 +88,7 @@ enum UiTheme {
 
 type CommandResult = Result<(), Error>;
 type Line = Vec<Fancy>;
+type Lines = Vec<Line>;
 
 struct TagMap {
     tags: HashMap<String, Tag>,
@@ -137,7 +138,63 @@ fn login(_rt: &mut Runtime, _client: Client, _options: Login) -> CommandResult {
     Ok(())
 }
 
-fn render_stories(stories: &[Story], tag_map: &TagMap, theme: &Theme) -> Result<Vec<Line>, Error> {
+fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult {
+    let page = Page::new(options.page.unwrap_or(1));
+    let future_stories = client.index(page);
+    let future_tags = client.tags();
+    let work = future_tags.join(future_stories);
+
+    // Fetch tags and stories in parallel
+    print!("Loading...");
+    stdout().flush()?;
+    let (tags, stories) = rt.block_on(work)?;
+    println!(" done.");
+
+    let tag_map = TagMap::new(tags);
+
+    {
+        let screen = AlternateScreen::from(stdout());
+        let mut screen = screen.into_raw_mode()?;
+        let stdin = stdin();
+
+        // FIXME: This is terrible
+        let lines = match options.theme {
+            UiTheme::Color256 => render_stories(&stories, &tag_map, &LOBSTERS_256)?,
+            UiTheme::TrueColor => render_stories(&stories, &tag_map, &LOBSTERS_TRUE)?,
+            UiTheme::Mono => render_stories(&stories, &tag_map, &LOBSTERS_MONO)?,
+            UiTheme::Grey => render_stories(&stories, &tag_map, &LOBSTERS_GREY)?,
+        };
+
+        render_lines(&lines, &mut screen)?;
+
+        for c in stdin.keys() {
+            match c.unwrap() {
+                Key::Char('q') => break,
+                Key::Char('j') => {
+                    write!(screen, "{}", scroll::Up(1))?;
+                }
+                Key::Char('k') => {
+                    write!(screen, "{}", scroll::Down(1))?;
+                }
+                // Key::Char(c) => println!("{}", c),
+                // Key::Alt(c) => println!("^{}", c),
+                // Key::Ctrl(c) => println!("*{}", c),
+                // Key::Esc => println!("ESC"),
+                // Key::Left => println!("←"),
+                // Key::Right => println!("→"),
+                // Key::Up => println!("↑"),
+                // Key::Down => println!("↓"),
+                // Key::Backspace => println!("×"),
+                _ => (),
+            }
+            // stdout.flush().unwrap();
+        }
+    }
+
+    Ok(())
+}
+
+fn render_stories(stories: &[Story], tag_map: &TagMap, theme: &Theme) -> Result<Lines, Error> {
     let mut lines = Vec::new();
 
     // Calculate the max number of digits so scores can be padded
@@ -193,68 +250,17 @@ fn render_stories(stories: &[Story], tag_map: &TagMap, theme: &Theme) -> Result<
     Ok(lines)
 }
 
-fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult {
-    let page = Page::new(options.page.unwrap_or(1));
-    let future_stories = client.index(page);
-    let future_tags = client.tags();
-    let work = future_tags.join(future_stories);
-
-    // Fetch tags and stories in parallel
-    print!("Loading...");
-    stdout().flush()?;
-    let (tags, stories) = rt.block_on(work)?;
-    println!(" done.");
-
-    let tag_map = TagMap::new(tags);
-
-    {
-        let screen = AlternateScreen::from(stdout());
-        let mut screen = screen.into_raw_mode()?;
-        let stdin = stdin();
-
-        // FIXME: This is terrible
-        let lines = match options.theme {
-            UiTheme::Color256 => render_stories(&stories, &tag_map, &LOBSTERS_256)?,
-            UiTheme::TrueColor => render_stories(&stories, &tag_map, &LOBSTERS_TRUE)?,
-            UiTheme::Mono => render_stories(&stories, &tag_map, &LOBSTERS_MONO)?,
-            UiTheme::Grey => render_stories(&stories, &tag_map, &LOBSTERS_GREY)?,
-        };
-
-        // TODO: Proper rendering
-        for line in lines {
-            for (i, span) in line.iter().enumerate() {
-                if i != 0 {
-                    write!(screen, " {}", span)
-                } else {
-                    write!(screen, "{}", span)
-                }?;
-            }
-
-            write!(screen, "\r\n")?;
+fn render_lines<W: Write>(lines: &[Line], screen: &mut RawTerminal<W>) -> Result<(), Error> {
+    for line in lines {
+        for (i, span) in line.iter().enumerate() {
+            if i != 0 {
+                write!(screen, " {}", span)
+            } else {
+                write!(screen, "{}", span)
+            }?;
         }
 
-        for c in stdin.keys() {
-            match c.unwrap() {
-                Key::Char('q') => break,
-                Key::Char('j') => {
-                    write!(screen, "{}", scroll::Up(1))?;
-                }
-                Key::Char('k') => {
-                    write!(screen, "{}", scroll::Down(1))?;
-                }
-                // Key::Char(c) => println!("{}", c),
-                // Key::Alt(c) => println!("^{}", c),
-                // Key::Ctrl(c) => println!("*{}", c),
-                // Key::Esc => println!("ESC"),
-                // Key::Left => println!("←"),
-                // Key::Right => println!("→"),
-                // Key::Up => println!("↑"),
-                // Key::Down => println!("↓"),
-                // Key::Backspace => println!("×"),
-                _ => (),
-            }
-            // stdout.flush().unwrap();
-        }
+        write!(screen, "\r\n")?;
     }
 
     Ok(())
