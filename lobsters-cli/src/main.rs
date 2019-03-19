@@ -21,7 +21,7 @@ use lobsters::Client;
 
 use lobsters_cli::{
     text::Fancy,
-    theme::{Theme, LOBSTERS_256, LOBSTERS_GREY, LOBSTERS_MONO, LOBSTERS_TRUE},
+    theme::{Colour, Theme, LOBSTERS_256, LOBSTERS_GREY, LOBSTERS_MONO, LOBSTERS_TRUE},
     util,
 };
 
@@ -76,6 +76,12 @@ struct App {
 
     #[structopt(subcommand)]
     command: Option<Command>,
+}
+
+struct StoryView {
+    tag_map: TagMap,
+    stories: Vec<Story>,
+    current_story: usize,
 }
 
 #[derive(Debug)]
@@ -151,7 +157,13 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
     println!(" done.");
     let (width, height) = util::as_usize(termion::terminal_size()?);
 
+    if stories.len() < 1 {
+        println!("There are no stories to show.");
+        return Ok(());
+    }
+
     let tag_map = TagMap::new(tags);
+    let mut state = StoryView::new(stories, tag_map);
     let mut row_offset = 0;
     let mut col_offset = 0;
 
@@ -161,30 +173,36 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
         write!(screen, "{}", cursor::Hide)?;
         let stdin = stdin();
 
-        // FIXME: This is terrible
-        let lines = match options.theme {
-            UiTheme::Color256 => render_stories(&stories, &tag_map, &LOBSTERS_256)?,
-            UiTheme::TrueColor => render_stories(&stories, &tag_map, &LOBSTERS_TRUE)?,
-            UiTheme::Mono => render_stories(&stories, &tag_map, &LOBSTERS_MONO)?,
-            UiTheme::Grey => render_stories(&stories, &tag_map, &LOBSTERS_GREY)?,
+        let theme = match options.theme {
+            UiTheme::Color256 => &LOBSTERS_256,
+            UiTheme::TrueColor => &LOBSTERS_TRUE,
+            UiTheme::Mono => &LOBSTERS_MONO,
+            UiTheme::Grey => &LOBSTERS_GREY,
         };
 
+        let mut lines = render_stories(&state, theme)?;
         render_lines(&lines, &mut screen, row_offset, col_offset)?;
 
         for c in stdin.keys() {
             match c.unwrap() {
                 Key::Char('q') => break,
                 Key::Char('j') => {
-                    if lines.len() - row_offset > height {
-                        row_offset += 1;
-                        render_lines(&lines, &mut screen, row_offset, col_offset)?;
-                    }
+                    // if lines.len() - row_offset > height {
+                    //     row_offset += 1;
+                    //     render_lines(&lines, &mut screen, row_offset, col_offset)?;
+                    // }
+                    state.current_story += 1;
+                    lines = render_stories(&state, theme)?;
+                    render_lines(&lines, &mut screen, row_offset, col_offset)?;
                 }
                 Key::Char('k') => {
-                    if let Some(new_offset) = row_offset.checked_sub(1) {
-                        row_offset = new_offset;
-                        render_lines(&lines, &mut screen, row_offset, col_offset)?;
-                    }
+                    // if let Some(new_offset) = row_offset.checked_sub(1) {
+                    //     row_offset = new_offset;
+                    //     render_lines(&lines, &mut screen, row_offset, col_offset)?;
+                    // }
+                    state.current_story -= 1;
+                    lines = render_stories(&state, theme)?;
+                    render_lines(&lines, &mut screen, row_offset, col_offset)?;
                 }
                 Key::Char('h') => {
                     // TODO: Limit the number of rows
@@ -217,22 +235,39 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
     Ok(())
 }
 
-fn render_stories(stories: &[Story], tag_map: &TagMap, theme: &Theme) -> Result<Lines, Error> {
+fn render_stories(state: &StoryView, theme: &Theme) -> Result<Lines, Error> {
     let mut lines = Vec::new();
 
     // Calculate the max number of digits so scores can be padded
-    let digits = stories
+    let digits = state
+        .stories
         .iter()
         .map(|story| util::count_digits(story.score))
         .max()
         .unwrap_or(1);
 
-    for story in stories {
+    for (i, story) in state.stories.iter().enumerate() {
         // TODO: Map empty strings to None when parsing response
         let url = match story.url.as_str() {
             "" => None,
             url => Some(url.parse::<Url>().map_err(lobsters::Error::from)?),
         };
+        let score = Fancy::new(format!("{:1$}", story.score, digits)).fg(theme.score);
+        let title = Fancy::new(format!(" {}", story.title))
+            .fg(theme.title)
+            .bold();
+        let tags = story
+            .tags
+            .iter()
+            .filter_map(|tag| state.tag_map.get(tag))
+            .map(|tag| Fancy::new(format!(" {}", tag.tag)).fg(theme.tag_colour(tag)));
+        let domain = Fancy::new(
+            url.and_then(|url| url.domain().map(|d| format!(" {}", d)))
+                .unwrap_or_else(|| "".to_string()),
+        )
+        .fg(theme.domain)
+        .italic();
+
         let created_at = story.created_at.parse::<DateTime<FixedOffset>>()?;
         let meta = format!(
             "{:pad$} via {submitter} {when} | {n} comments",
@@ -242,35 +277,31 @@ fn render_stories(stories: &[Story], tag_map: &TagMap, theme: &Theme) -> Result<
             when = HumanTime::from(created_at),
             n = story.comment_count
         );
-        let domain = Fancy::new(
-            url.and_then(|url| url.domain().map(|d| d.to_string()))
-                .unwrap_or_else(|| "".to_string()),
-        )
-        .fg(theme.domain)
-        .italic();
 
-        let score = Fancy::new(format!("{:1$}", story.score, digits)).fg(theme.score);
-        let title = Fancy::new(format!("{}", story.title))
-            .fg(theme.title)
-            .bold();
-        let tags = story
-            .tags
-            .iter()
-            .filter_map(|tag| tag_map.get(tag))
-            .map(|tag| Fancy::new(tag.tag.as_str()).fg(theme.tag_colour(tag)));
+        let mut line1 = Line::new();
+        line1.push(score);
+        line1.push(title);
+        line1.extend(tags);
+        line1.push(domain);
 
-        let mut line = Line::new();
-        line.push(score);
-        line.push(title);
-        line.extend(tags);
-        line.push(domain);
-        lines.push(line);
+        // Meta line
+        let mut line2 = vec![Fancy::new(meta).fg(theme.byline)];
 
-        // Add meta line
-        lines.push(vec![Fancy::new(meta).fg(theme.byline)]);
+        // Pretty sure this is breaking some software architecture rules
+        if i == state.current_story {
+            line1 = highlight_line(line1, theme.cursor);
+            line2 = highlight_line(line2, theme.cursor);
+        }
+
+        lines.push(line1);
+        lines.push(line2);
     }
 
     Ok(lines)
+}
+
+fn highlight_line(line: Line, colour: Colour) -> Line {
+    line.into_iter().map(|span| span.bg(colour)).collect()
 }
 
 /// Render the lines with offset (x, y)
@@ -324,25 +355,23 @@ fn render_lines<W: Write>(
         if row != 0 {
             write!(screen, "\r\n")?;
         }
-        for (i, span) in line.enumerate() {
-            let space = if i != 0 { " " } else { "" };
-            let span_cols = span.cols() + space.len();
+
+        let mut last_span = None;
+        for span in line {
+            let span_cols = span.cols();
 
             if col + span_cols < width {
-                write!(screen, "{}{}", space, span)?;
-                write!(log, "{}: {}{}\n", col, space, span)?;
+                write!(screen, "{}", span)?;
+                write!(log, "{}: {}\n", col, span)?;
                 col += span_cols;
+                last_span = Some(span);
             } else {
-                let truncate_cols = 1 + width - col - space.len();
-                write!(screen, "{}{}", space, span.truncate(truncate_cols))?;
-                write!(
-                    log,
-                    "{} (t): {}{}\n",
-                    col,
-                    space,
-                    span.truncate(width - col)
-                )?;
+                let truncate_cols = 1 + width - col;
+                let truncated = span.truncate(truncate_cols);
+                write!(screen, "{}", truncated)?;
+                write!(log, "{} (t): {}\n", col, truncated)?;
                 col += truncate_cols;
+                last_span = Some(truncated);
                 break;
             }
         }
@@ -350,7 +379,15 @@ fn render_lines<W: Write>(
         // Erase the rest of the line
         // This is done in favor of ClearAll to reduce flicker
         if col < width {
-            screen.write_all(&empty_line[0..width - col])?;
+            if let Some(bg) = last_span.and_then(|span| span.get_bg()) {
+                // TODO: Make Fancy store text with a Cow so slice can be passed to it
+                // NOTE(unwrap): Safe because empty_line is all spaces
+                let blank = String::from_utf8(empty_line[0..width - col].to_vec()).unwrap();
+                let blank_with_bg = Fancy::new(blank).bg(bg);
+                write!(screen, "{}", blank_with_bg)?;
+            } else {
+                screen.write_all(&empty_line[0..width - col])?;
+            }
         }
     }
 
@@ -387,6 +424,18 @@ impl TagMap {
 
     pub fn get<'a>(&'a self, name: &ShortTag) -> Option<&'a Tag> {
         self.tags.get(&name.0)
+    }
+}
+
+impl StoryView {
+    pub fn new(stories: Vec<Story>, tag_map: TagMap) -> Self {
+        assert!(stories.len() > 0, "no stories");
+
+        StoryView {
+            stories,
+            tag_map,
+            current_story: 0,
+        }
     }
 }
 

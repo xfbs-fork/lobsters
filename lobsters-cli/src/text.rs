@@ -47,6 +47,10 @@ impl Fancy {
         self
     }
 
+    pub fn get_bg(&self) -> Option<Colour> {
+        self.bg
+    }
+
     pub fn bold(mut self) -> Self {
         self.bold = true;
         self

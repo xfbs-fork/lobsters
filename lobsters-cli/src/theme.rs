@@ -9,6 +9,7 @@ pub enum Colour {
     Ansi(AnsiValue),
     Rgb(Rgb),
     White,
+    Black,
 }
 
 pub struct Theme {
@@ -20,6 +21,7 @@ pub struct Theme {
     pub title: Colour,
     pub domain: Colour,
     pub byline: Colour,
+    pub cursor: Colour,
 }
 
 pub static LOBSTERS_MONO: Theme = Theme {
@@ -31,6 +33,7 @@ pub static LOBSTERS_MONO: Theme = Theme {
     title: Colour::White,
     domain: Colour::White,
     byline: Colour::White,
+    cursor: Colour::Black,
 };
 
 pub static LOBSTERS_GREY: Theme = Theme {
@@ -42,6 +45,7 @@ pub static LOBSTERS_GREY: Theme = Theme {
     title: Colour::Ansi(AnsiValue(254)),
     domain: Colour::Ansi(AnsiValue(245)),
     byline: Colour::Ansi(AnsiValue(250)),
+    cursor: Colour::Ansi(AnsiValue(237)),
 };
 
 pub static LOBSTERS_256: Theme = Theme {
@@ -53,6 +57,7 @@ pub static LOBSTERS_256: Theme = Theme {
     title: Colour::Ansi(AnsiValue(33)),
     domain: Colour::Ansi(AnsiValue(245)),
     byline: Colour::Ansi(AnsiValue(250)),
+    cursor: Colour::Ansi(AnsiValue(237)),
 };
 
 pub static LOBSTERS_TRUE: Theme = Theme {
@@ -64,6 +69,7 @@ pub static LOBSTERS_TRUE: Theme = Theme {
     title: Colour::Rgb(Rgb(37, 98, 220)),
     domain: Colour::Rgb(Rgb(153, 153, 153)), // On the site this is actually the same as metadata
     byline: Colour::Rgb(Rgb(136, 136, 136)),
+    cursor: Colour::Ansi(AnsiValue(237)),
 };
 
 impl Theme {
@@ -86,6 +92,7 @@ impl TermionColor for Colour {
             Colour::Ansi(ansi) => ansi.write_fg(f),
             Colour::Rgb(rgb) => rgb.write_fg(f),
             Colour::White => color::White.write_fg(f),
+            Colour::Black => color::Black.write_fg(f),
         }
     }
 
@@ -94,6 +101,7 @@ impl TermionColor for Colour {
             Colour::Ansi(ansi) => ansi.write_bg(f),
             Colour::Rgb(rgb) => rgb.write_bg(f),
             Colour::White => color::White.write_bg(f),
+            Colour::Black => color::Black.write_bg(f),
         }
     }
 }
