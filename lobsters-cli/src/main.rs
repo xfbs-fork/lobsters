@@ -110,6 +110,9 @@ fn main() {
             eprintln!("Error: Tried to find a HTML element that did not exist on the page")
         }
         Err(Error::InvalidDate(err)) => eprintln!("Unable to parse date: {:?}", err),
+        Err(Error::NotATty) => {
+            eprintln!("Error: This program needs a tty (you can't pipe or redirect its output)")
+        }
     }
 
     if result.is_err() {
@@ -128,11 +131,16 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
     let future_tags = client.tags();
     let work = future_tags.join(future_stories);
 
+    if !termion::is_tty(&stdout()) {
+        return Err(Error::NotATty);
+    }
+
     // Fetch tags and stories in parallel
     print!("Loading...");
     stdout().flush()?;
     let (tags, stories) = rt.block_on(work)?;
     println!(" done.");
+
     let (_width, height) = util::as_usize(termion::terminal_size()?);
     let height = usize::from(height);
 
@@ -143,11 +151,14 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
 
     let mut state = State::new(stories, tags);
 
+    // Switch to alternate screen and enter main loop
     {
         let screen = AlternateScreen::from(stdout());
         let mut screen = screen.into_raw_mode()?;
-        write!(screen, "{}", cursor::Hide)?;
         let stdin = stdin();
+
+        // Hide the cursor
+        write!(screen, "{}", cursor::Hide)?;
 
         let theme = match options.theme {
             UiTheme::Color256 => &LOBSTERS_256,
@@ -156,9 +167,11 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
             UiTheme::Grey => &LOBSTERS_GREY,
         };
 
+        // Render initial UI
         let mut lines = render_stories(&mut state, theme, height)?;
         render_lines(&lines, &mut screen, state.col_offset())?;
 
+        // Main loop
         for c in stdin.keys() {
             match c.unwrap() {
                 Key::Char('q') | Key::Esc => break,
@@ -194,6 +207,7 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
             }
         }
 
+        // Restore the cursor before returning
         write!(screen, "{}", cursor::Show)?;
     }
 

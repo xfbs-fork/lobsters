@@ -9,6 +9,7 @@ pub struct ParseThemeError(pub String);
 pub enum Error {
     Lobsters(lobsters::Error),
     InvalidDate(chrono::ParseError),
+    NotATty,
 }
 
 impl From<lobsters::Error> for Error {
