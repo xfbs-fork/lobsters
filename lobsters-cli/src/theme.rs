@@ -24,6 +24,13 @@ pub struct Theme {
     pub cursor: Colour,
 }
 
+pub mod themes {
+    pub use super::LOBSTERS_256;
+    pub use super::LOBSTERS_GREY;
+    pub use super::LOBSTERS_MONO;
+    pub use super::LOBSTERS_TRUE;
+}
+
 pub static LOBSTERS_MONO: Theme = Theme {
     score: Colour::White,
     ask_tag: Colour::White,
