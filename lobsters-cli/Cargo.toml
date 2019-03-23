@@ -9,6 +9,7 @@ chrono = "0.4"
 chrono-humanize = "0.0.11"
 lobsters = { path = "../lobsters" }
 futures = "0.1"
+opener = "0.3"
 structopt = "0.2"
 termion = "1.5"
 tokio = "<= 1.0"

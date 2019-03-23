@@ -16,7 +16,7 @@ use tokio::runtime::Runtime;
 
 use lobsters::client::Page;
 use lobsters::models::{ShortTag, Story, Tag};
-use lobsters::url::Url;
+use lobsters::url::{self, Url};
 use lobsters::Client;
 
 use lobsters_cli::{
@@ -82,6 +82,8 @@ struct StoryView {
     tag_map: TagMap,
     stories: Vec<Story>,
     current_story: usize,
+    row_offset: usize,
+    col_offset: usize,
 }
 
 #[derive(Debug)]
@@ -155,7 +157,8 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
     stdout().flush()?;
     let (tags, stories) = rt.block_on(work)?;
     println!(" done.");
-    let (width, height) = util::as_usize(termion::terminal_size()?);
+    let (_width, height) = util::as_usize(termion::terminal_size()?);
+    let height = usize::from(height);
 
     if stories.len() < 1 {
         println!("There are no stories to show.");
@@ -164,8 +167,6 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
 
     let tag_map = TagMap::new(tags);
     let mut state = StoryView::new(stories, tag_map);
-    let mut row_offset = 0;
-    let mut col_offset = 0;
 
     {
         let screen = AlternateScreen::from(stdout());
@@ -180,53 +181,45 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
             UiTheme::Grey => &LOBSTERS_GREY,
         };
 
-        let mut lines = render_stories(&state, theme)?;
-        render_lines(&lines, &mut screen, row_offset, col_offset)?;
+        let mut lines = render_stories(&mut state, theme, height)?;
+        render_lines(&lines, &mut screen, state.col_offset)?;
 
         for c in stdin.keys() {
             match c.unwrap() {
-                Key::Char('q') => break,
-                Key::Char('j') => {
-                    // if lines.len() - row_offset > height {
-                    //     row_offset += 1;
-                    //     render_lines(&lines, &mut screen, row_offset, col_offset)?;
-                    // }
-                    state.current_story += 1;
-                    lines = render_stories(&state, theme)?;
-                    render_lines(&lines, &mut screen, row_offset, col_offset)?;
+                Key::Char('q') | Key::Esc => break,
+                Key::Char('j') | Key::Down => {
+                    if state.current_story < (state.stories.len() - 1) {
+                        state.current_story += 1;
+                        lines = render_stories(&mut state, theme, height)?;
+                        render_lines(&lines, &mut screen, state.col_offset)?;
+                    }
                 }
-                Key::Char('k') => {
-                    // if let Some(new_offset) = row_offset.checked_sub(1) {
-                    //     row_offset = new_offset;
-                    //     render_lines(&lines, &mut screen, row_offset, col_offset)?;
-                    // }
-                    state.current_story -= 1;
-                    lines = render_stories(&state, theme)?;
-                    render_lines(&lines, &mut screen, row_offset, col_offset)?;
+                Key::Char('k') | Key::Up => {
+                    if let Some(index) = state.current_story.checked_sub(1) {
+                        state.current_story = index;
+                        lines = render_stories(&mut state, theme, height)?;
+                        render_lines(&lines, &mut screen, state.col_offset)?;
+                    }
                 }
                 Key::Char('h') => {
                     // TODO: Limit the number of rows
-                    col_offset += 10;
-                    render_lines(&lines, &mut screen, row_offset, col_offset)?;
+                    state.col_offset += 10;
+                    render_lines(&lines, &mut screen, state.col_offset)?;
                 }
                 Key::Char('l') => {
-                    if let Some(new_offset) = col_offset.checked_sub(10) {
-                        col_offset = new_offset;
-                        render_lines(&lines, &mut screen, row_offset, col_offset)?;
+                    if let Some(new_offset) = state.col_offset.checked_sub(10) {
+                        state.col_offset = new_offset;
+                        render_lines(&lines, &mut screen, state.col_offset)?;
                     }
                 }
-                // Key::Char(c) => println!("{}", c),
-                // Key::Alt(c) => println!("^{}", c),
-                // Key::Ctrl(c) => println!("*{}", c),
-                // Key::Esc => println!("ESC"),
-                // Key::Left => println!("←"),
-                // Key::Right => println!("→"),
-                // Key::Up => println!("↑"),
-                // Key::Down => println!("↓"),
-                // Key::Backspace => println!("×"),
+                Key::Char('c') => {
+                    let _ = opener::open(state.comments_url()?.as_str());
+                }
+                Key::Char('\n') => {
+                    let _ = opener::open(state.story_url()?.as_str());
+                }
                 _ => (),
             }
-            // stdout.flush().unwrap();
         }
 
         write!(screen, "{}", cursor::Show)?;
@@ -235,7 +228,7 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
     Ok(())
 }
 
-fn render_stories(state: &StoryView, theme: &Theme) -> Result<Lines, Error> {
+fn render_stories(state: &mut StoryView, theme: &Theme, height: usize) -> Result<Lines, Error> {
     let mut lines = Vec::new();
 
     // Calculate the max number of digits so scores can be padded
@@ -297,18 +290,58 @@ fn render_stories(state: &StoryView, theme: &Theme) -> Result<Lines, Error> {
         lines.push(line2);
     }
 
-    Ok(lines)
+    Ok(limit_lines(state, lines, height))
 }
 
 fn highlight_line(line: Line, colour: Colour) -> Line {
     line.into_iter().map(|span| span.bg(colour)).collect()
 }
 
+trait Encompass<T> {
+    fn encompass(&self, other: &std::ops::Range<T>) -> Option<std::cmp::Ordering>
+    where
+        T: PartialOrd<T>;
+}
+
+impl<T> Encompass<T> for std::ops::Range<T> {
+    fn encompass(&self, other: &std::ops::Range<T>) -> Option<std::cmp::Ordering>
+    where
+        T: PartialOrd<T>,
+    {
+        if other.start < self.start {
+            Some(std::cmp::Ordering::Less)
+        } else if other.end > self.end {
+            Some(std::cmp::Ordering::Greater)
+        } else {
+            Some(std::cmp::Ordering::Equal)
+        }
+    }
+}
+
+fn limit_lines(state: &mut StoryView, lines: Lines, height: usize) -> Lines {
+    // Work out the range of lines to render, ensuring the current story is visible
+    let current_story_offset = state.current_story * 2;
+    let visible_range = state.row_offset..state.row_offset + height;
+    let story_range = current_story_offset..current_story_offset + 2;
+
+    match visible_range.encompass(&story_range) {
+        Some(std::cmp::Ordering::Less) => state.row_offset = story_range.start,
+        Some(std::cmp::Ordering::Equal) => (),
+        Some(std::cmp::Ordering::Greater) => state.row_offset = story_range.end - height,
+        None => (),
+    }
+
+    lines
+        .into_iter()
+        .skip(state.row_offset)
+        .take(height as usize)
+        .collect()
+}
+
 /// Render the lines with offset (x, y)
 fn render_lines<W: Write>(
     lines: &[Line],
     screen: &mut RawTerminal<W>,
-    row_offset: usize,
     col_offset: usize,
 ) -> Result<(), Error> {
     let (width, height) = util::as_usize(termion::terminal_size()?);
@@ -328,26 +361,22 @@ fn render_lines<W: Write>(
 
     write!(screen, "{}", termion::cursor::Goto(1, 1))?;
 
-    let scoped_lines = lines
-        .iter()
-        .skip(row_offset)
-        .take(usize::from(height))
-        .map(|line| {
-            let cols_remaining = col_offset;
+    let scoped_lines = lines.iter().map(|line| {
+        let cols_remaining = col_offset;
 
-            line.iter().filter_map(move |span| {
-                if cols_remaining > 0 {
-                    let span = span.truncate_front(cols_remaining);
-                    if span.is_empty() {
-                        None
-                    } else {
-                        Some(span)
-                    }
+        line.iter().filter_map(move |span| {
+            if cols_remaining > 0 {
+                let span = span.truncate_front(cols_remaining);
+                if span.is_empty() {
+                    None
                 } else {
-                    Some(span.clone()) // FIXME: clone
+                    Some(span)
                 }
-            })
-        });
+            } else {
+                Some(span.clone()) // FIXME: clone
+            }
+        })
+    });
 
     for (row, line) in scoped_lines.enumerate() {
         let mut col: usize = 0;
@@ -412,6 +441,12 @@ impl From<io::Error> for Error {
     }
 }
 
+impl From<url::ParseError> for Error {
+    fn from(err: url::ParseError) -> Self {
+        Error::Lobsters(lobsters::Error::Url(err))
+    }
+}
+
 impl TagMap {
     pub fn new(tags: Vec<Tag>) -> Self {
         let tags = tags.into_iter().fold(HashMap::new(), |mut map, tag| {
@@ -435,7 +470,24 @@ impl StoryView {
             stories,
             tag_map,
             current_story: 0,
+            row_offset: 0,
+            col_offset: 0,
         }
+    }
+
+    pub fn current_story(&self) -> &Story {
+        &self.stories[self.current_story]
+    }
+
+    pub fn story_url(&self) -> Result<Url, url::ParseError> {
+        match self.current_story().url.as_str() {
+            "" => self.comments_url(),
+            url => url.parse::<Url>(),
+        }
+    }
+
+    pub fn comments_url(&self) -> Result<Url, url::ParseError> {
+        self.current_story().comments_url.parse::<Url>()
     }
 }
 
