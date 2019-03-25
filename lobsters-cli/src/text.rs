@@ -11,8 +11,10 @@ use crate::theme::Colour;
 ///
 /// ```
 /// use lobsters_cli::text::Fancy;
+/// use lobsters_cli::theme::Colour;
+/// use termion::color::AnsiValue;
 ///
-/// let fancy_text = Fancy::new("Hello").fg(Box::new(termion::color::Red)).bold();
+/// let fancy_text = Fancy::new("Hello").fg(Colour::Ansi(AnsiValue(10))).bold();
 /// ```
 // Not sure about these trait objects but they work for now
 #[derive(Clone)]
@@ -163,8 +165,8 @@ mod tests {
     #[test]
     fn test_fancy_text() {
         let fancy_text = Fancy::new("Test")
-            .fg(Box::new(termion::color::White))
-            .bg(Box::new(termion::color::Blue))
+            .fg(Colour::White)
+            .bg(Colour::Ansi(termion::color::AnsiValue(4)))
             .bold()
             .underline()
             .italic();
