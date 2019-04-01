@@ -211,24 +211,24 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
         for c in stdin.keys() {
             match c.unwrap() {
                 Key::Char('q') | Key::Esc => break,
-                Key::Char('j') | Key::Up => {
+                Key::Char('j') | Key::Down => {
                     if state.next_story() {
                         lines = render_stories(&mut state, theme, height)?;
                         render_lines(&lines, &mut screen, state.col_offset())?;
                     }
                 }
-                Key::Char('k') | Key::Down => {
+                Key::Char('k') | Key::Up => {
                     if state.prev_story() {
                         lines = render_stories(&mut state, theme, height)?;
                         render_lines(&lines, &mut screen, state.col_offset())?;
                     }
                 }
-                Key::Char('h') => {
+                Key::Char('h') | Key::Left => {
                     if state.scroll_left(HORIZONTAL_SCROLL_AMOUNT) {
                         render_lines(&lines, &mut screen, state.col_offset())?;
                     }
                 }
-                Key::Char('l') => {
+                Key::Char('l') | Key::Right => {
                     if state.scroll_right(HORIZONTAL_SCROLL_AMOUNT) {
                         render_lines(&lines, &mut screen, state.col_offset())?;
                     }
