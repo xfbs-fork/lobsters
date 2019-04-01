@@ -25,7 +25,9 @@ This client crate allows the following to be performed with the client:
 ## Why
 
 It did this mostly to practice building asynchronous HTTP clients in Rust and
-gain more experience with the async ecosystem.
+gain more experience with the async ecosystem. Then I needed something to test
+the client and ended up building the UI.
+<!-- [I wrote more about it on my blog] -->
 
 ## How
 
@@ -36,13 +38,13 @@ You can try out out by downloading a pre-compiled binary, available below.
 
 The TUI uses the following key bindings:
 
-* `j` or `↓` -- Move cursor down
-* `k` or `↑` -- Move cursor up
-* `h` or `←` -- Scroll view left
-* `l` or `→` -- Scroll view right
-* `Enter` -- Open story URL in browser
-* `c` -- Open story comments in browser
-* `q` or `Esc` -- Quit
+* `j` or `↓` — Move cursor down
+* `k` or `↑` — Move cursor up
+* `h` or `←` — Scroll view left
+* `l` or `→` — Scroll view right
+* `Enter` — Open story URL in browser
+* `c` — Open story comments in browser
+* `q` or `Esc` — Quit
 
 ## Installing
 
@@ -51,10 +53,14 @@ The TUI uses the following key bindings:
 `lobsters` is a single binary available for a handful of platforms. To download
 the latest release do the following:
 
-* x86_64 FreeBSD: `curl -L https://releases.wezm.net/lobsters/lobsters-v0.1.0-x86_64-unknown-freebsd.tar.gz | tar zxf -`
-* x86_64 NetBSD: `curl -L https://releases.wezm.net/lobsters/lobsters-v0.1.0-x86_64-unknown-netbsd.tar.gz | tar zxf -`
-* Raspberry Pi: `curl -L https://releases.wezm.net/lobsters/lobsters-v0.1.0-arm-unknown-linux-gnueabihf.tar.gz | tar zxf -`
-* x86_64 Linux: `curl -L https://releases.wezm.net/lobsters/lobsters-v0.1.0-x86_64-unknown-linux-musl.tar.gz | tar zxf -`
+* FreeBSD x86_64:
+  * `curl -L https://releases.wezm.net/lobsters/lobsters-0.1.0-x86_64-unknown-freebsd.tar.gz | tar zxf -`
+* NetBSD x86_64:
+  * `curl -L https://releases.wezm.net/lobsters/lobsters-0.1.0-x86_64-unknown-netbsd.tar.gz | tar zxf -`
+* Raspberry Pi:
+  * `curl -L https://releases.wezm.net/lobsters/lobsters-0.1.0-arm-unknown-linux-gnueabihf.tar.gz | tar zxf -`
+* Linux x86_64:
+  * `curl -L https://releases.wezm.net/lobsters/lobsters-0.1.0-x86_64-unknown-linux-musl.tar.gz | tar zxf -`
 
 The binary should be in your current directory and can be run as follows:
 
@@ -73,9 +79,9 @@ Feel free to move it elsewhere (`~/.local/bin` for example).
 
 ### Cross-Compiling
 
-There is a script that will build binaries for several platforms. You will
-need an arm-linux-gnueabihf and musl toolchain installed as well as those
-rustup targets installed.
+There is a script that will build binaries for several platforms. You will need
+an `arm-linux-gnueabihf` and `musl` toolchain installed as well as those rustup
+targets installed.
 
     ./build-all-platforms
 

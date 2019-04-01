@@ -1,0 +1,38 @@
+#!/bin/sh
+
+set -e
+
+if [ -z "$1" ]; then
+  echo "Usage: tar-binaries VERSION"
+  echo "E.g. tar-binaries 0.1.0"
+  exit 1
+fi
+
+VERSION="$1"
+
+package() {
+  platform="$1"
+
+  tar zcf "target/lobsters-${VERSION}-${platform}.tar.gz" "target/${platform}/release/lobsters"
+}
+
+set -- \
+arm-unknown-linux-gnueabihf
+
+for platform do
+  echo "$platform"
+  arm-linux-gnueabihf-strip "target/${platform}/release/lobsters"
+  package "$platform"
+done
+
+set -- \
+x86_64-unknown-freebsd \
+x86_64-unknown-netbsd \
+x86_64-unknown-linux-musl
+
+for platform do
+  echo "$platform"
+  echo "target/${platform}/release/lobsters"
+  strip "target/${platform}/release/lobsters"
+  package "$platform"
+done
