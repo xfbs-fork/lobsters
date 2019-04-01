@@ -119,7 +119,6 @@ impl Client {
                     {
                         futures::future::ok(())
                     } else {
-                        // TODO: return error
                         futures::future::err(Error::Authorisation)
                     }
                 })
