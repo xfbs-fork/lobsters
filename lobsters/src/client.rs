@@ -12,6 +12,7 @@ use cookie_store::CookieStore;
 use directories::ProjectDirs;
 use futures::{Future, IntoFuture, Stream};
 use kuchiki::traits::TendrilSink;
+use log::debug;
 use reqwest::header::LOCATION;
 use reqwest::r#async::{ClientBuilder, Response};
 use reqwest::RedirectPolicy;
@@ -73,27 +74,58 @@ impl Client {
     ) -> impl Future<Item = (), Error = Error> {
         let get_token = self.http.get("login").and_then(Self::extract_csrf_token);
 
+        // https://github.com/lobsters/lobsters/blob/9711868670e9c638a55fc94ab8ae48002d31ad06/app/controllers/login_controller.rb#L70
+        let success_url = self.http.base_url().join("lobsters-login-success");
+        let success_url = move |token| {
+            success_url
+                .map_err(Error::from)
+                .into_future()
+                .map(|url| (url, token))
+        };
+
         let client = self.http.clone();
-        let login = move |token| {
-            let params = [("email", username_or_email), ("password", password)];
+        let login = move |(success_url, token): (Url, _)| {
+            let params = [
+                ("email", username_or_email),
+                ("password", password),
+                ("referer", success_url.to_string()),
+            ];
 
             client
                 .post("login", params, token)
                 .and_then(|res| {
-                    eprintln!("{:?}", res.status());
-                    res.into_body().concat2().map_err(Error::from)
+                    let location = if res.status().is_redirection() {
+                        res.headers()
+                            .get(LOCATION)
+                            .and_then(|header| header.to_str().ok())
+                            .map(|s| s.to_string())
+                    } else {
+                        None
+                    };
+                    res.into_body()
+                        .concat2()
+                        .map_err(Error::from)
+                        .map(|body| (location, body))
                 })
-                .and_then(|body| {
+                .and_then(|(location, body)| {
                     let b = std::str::from_utf8(&body).unwrap();
-                    eprintln!("login body = {}", b);
+                    debug!("login body = {}", b);
 
-                    // TODO: Determine success
-
-                    futures::future::ok(())
+                    // Success is deemed to be if the response redirects to the success_url
+                    if location
+                        .and_then(|url| url.parse().ok())
+                        .map(move |url: Url| url == success_url)
+                        .unwrap_or(false)
+                    {
+                        futures::future::ok(())
+                    } else {
+                        // TODO: return error
+                        futures::future::err(Error::Authorisation)
+                    }
                 })
         };
 
-        get_token.and_then(login)
+        get_token.and_then(success_url).and_then(login)
     }
 
     /// Retrieve the front page stories, newest first
@@ -149,7 +181,7 @@ impl Client {
                 })
                 .and_then(|(location, body)| {
                     let b = std::str::from_utf8(&body).unwrap();
-                    eprintln!("body = {}", b);
+                    debug!("body = {}", b);
 
                     // TODO: Determine success
 

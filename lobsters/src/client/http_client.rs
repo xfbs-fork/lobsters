@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use cookie_store::CookieStore;
 use futures::{Future, IntoFuture};
+use log::info;
 use reqwest::header::{HeaderMap, ACCEPT, COOKIE, SET_COOKIE};
 use reqwest::r#async::{Client as ReqwestClient, Response};
 use serde::Serialize;
@@ -48,7 +49,7 @@ impl HttpClient {
             .map_err(Error::from)
             .into_future()
             .and_then(move |url| {
-                eprintln!("POST {}", url.as_str());
+                info!("POST {}", url.as_str());
 
                 client
                     .post(url.as_str())
@@ -71,7 +72,7 @@ impl HttpClient {
             .map_err(Error::from)
             .into_future()
             .and_then(move |url| {
-                eprintln!("GET {}", url.as_str());
+                info!("GET {}", url.as_str());
 
                 client
                     .get(url.as_str())

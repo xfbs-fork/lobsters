@@ -51,6 +51,10 @@ Feel free to move it elsewhere (`~/.local/bin` for example).
     cargo install --path lobsters
 -->
 
+## Known Limitations
+
+* Support for 2FA login is not implemented
+
 ## License
 
 This project is dual licenced under:

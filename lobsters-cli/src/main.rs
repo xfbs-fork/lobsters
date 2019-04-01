@@ -1,6 +1,7 @@
 use std::io::{stdin, stdout, Write};
 use std::str::FromStr;
 
+use env_logger::Env;
 use futures::future::Future;
 use structopt::StructOpt;
 use termion::cursor;
@@ -79,6 +80,9 @@ enum UiTheme {
 type CommandResult = Result<(), Error>;
 
 fn main() {
+    let env = Env::new().filter("LOBSTERS_LOG");
+    env_logger::init_from_env(env);
+
     let app = App::from_args();
     let mut rt = Runtime::new().unwrap();
     let client = Client::new(app.base_url).expect("error creating client");
@@ -109,6 +113,7 @@ fn main() {
         Err(Error::Lobsters(lobsters::Error::MissingHtmlElement)) => {
             eprintln!("Error: Tried to find a HTML element that did not exist on the page")
         }
+        Err(Error::Lobsters(lobsters::Error::Authorisation)) => eprintln!("Error: Not authorised"),
         Err(Error::InvalidDate(err)) => eprintln!("Unable to parse date: {:?}", err),
         Err(Error::NotATty) => {
             eprintln!("Error: This program needs a tty (you can't pipe or redirect its output)")
@@ -120,9 +125,40 @@ fn main() {
     }
 }
 
-fn login(_rt: &mut Runtime, _client: Client, _options: Login) -> CommandResult {
-    //     // let login = client.login(username, password);
-    Ok(())
+fn login(rt: &mut Runtime, client: Client, _options: Login) -> CommandResult {
+    let stdout = stdout();
+    let mut stdout = stdout.lock();
+    let stdin = stdin();
+    let mut stdin = stdin.lock();
+
+    stdout.write_all(b"username: ")?;
+    stdout.flush()?;
+
+    let username = stdin.read_line()?;
+    if username.is_none() {
+        return Ok(());
+    }
+
+    stdout.write_all(b"password: ")?;
+    stdout.flush()?;
+
+    let password = stdin.read_passwd(&mut stdout)?;
+    if password.is_none() {
+        return Ok(());
+    }
+    let _ = stdout.write_all(b"\n");
+
+    // NOTE: unwrap is safe due to is_none checks above
+    let login = client.login(username.unwrap(), password.unwrap());
+
+    let res = rt.block_on(login);
+
+    if res.is_ok() {
+        // Ignore result since they have successfully logged in, no point showing an error now
+        let _ = stdout.write_all(b"Ok\n");
+    }
+
+    res.map_err(Error::from)
 }
 
 fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult {

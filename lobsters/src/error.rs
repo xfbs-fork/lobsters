@@ -19,6 +19,8 @@ pub enum Error {
     CookieStore,
     /// A desired HTML element was unable to be found in the markup
     MissingHtmlElement,
+    /// The request was not authorised or login attemp failed
+    Authorisation,
 }
 
 impl From<reqwest::Error> for Error {
