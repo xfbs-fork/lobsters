@@ -1,14 +1,16 @@
 Lobsters client for Rust
 ========================
 
-Build Status:
-
-* Debian: [![builds.sr.ht Debian status](https://builds.sr.ht/~wezm/lobsters/debian.yml.svg)](https://builds.sr.ht/~wezm/lobsters/debian.yml?)
-* FreeBSD: [![builds.sr.ht FreeBSD status](https://builds.sr.ht/~wezm/lobsters/freebsd.yml.svg)](https://builds.sr.ht/~wezm/lobsters/freebsd.yml?)
-
 <img src="https://git.sr.ht/~wezm/lobsters/blob/master/screenshot.png" alt="Screenshot of lobsters in a terminal window" width="568" />
 
-## What
+* [Issue Tracker][issues]
+* [Download](#download)
+* [Build](#build)
+* [Testing](#testing)
+* [Contributing](#contributing)
+
+What
+----
 
 This is a pair of Rust crates. One implements an asynchronous HTTP client for
 the [Lobsters] website, and other websites running its code. The other
@@ -22,14 +24,16 @@ This client crate allows the following to be performed with the client:
 * Post comments and replies
 * Login
 
-## Why
+Why
+---
 
 It did this mostly to practice building asynchronous HTTP clients in Rust and
 gain more experience with the async ecosystem. Then I needed something to test
 the client and ended up building the UI.
 <!-- [I wrote more about it on my blog] -->
 
-## How
+How
+---
 
 The lobsters-cli crate in this repo provides an example of the crate in use.
 You can try out out by downloading a pre-compiled binary, available below.
@@ -46,9 +50,8 @@ The TUI uses the following key bindings:
 * `c` — Open story comments in browser
 * `q` or `Esc` — Quit
 
-## Installing
-
-### From Binary Release
+Download
+--------
 
 `lobsters` is a single binary available for a handful of platforms. To download
 the latest release do the following:
@@ -70,7 +73,13 @@ The binary should be in your current directory and can be run as follows:
 
 Feel free to move it elsewhere (`~/.local/bin` for example).
 
-## Building
+Building
+--------
+
+Build Status:
+
+* Debian: [![builds.sr.ht Debian status](https://builds.sr.ht/~wezm/lobsters/debian.yml.svg)](https://builds.sr.ht/~wezm/lobsters/debian.yml?)
+* FreeBSD: [![builds.sr.ht FreeBSD status](https://builds.sr.ht/~wezm/lobsters/freebsd.yml.svg)](https://builds.sr.ht/~wezm/lobsters/freebsd.yml?)
 
 ### From Source
 
@@ -87,11 +96,46 @@ targets installed.
 
     ./build-all-platforms
 
-## Known Limitations
+Known Limitations
+-----------------
 
 * Support for 2FA login is not implemented
 
-## License
+Testing
+-------
+
+Run the test suite:
+
+    cargo test
+
+Contributing
+------------
+
+If you have code or patches you wish to contribute, the preferred mechanism is
+a git pull request. Push your changes to a git repository somewhere (Sourcehut,
+GitHub, GitLab, whatever). Ensure that contributions don't break [the
+tests](#testing) and add new ones when appropriate.
+
+Assuming you have followed the [build steps](#build) above you would do the
+following to push to your own fork on Sourcehut, change the git URL to match
+wherever your forked repo is:
+
+    git remote rename origin upstream
+    git remote add origin git@git.sr.ht:~yourname/lobsters
+    git push -u origin master
+
+Then generate the pull request:
+
+    git fetch upstream master
+    git request-pull -p upstream/master origin
+
+And copy-paste the result into a plain-text email to wes@wezm.net.
+
+You may alternately use a patch-based approach as described on
+<https://git-send-email.io>.
+
+License
+-------
 
 This project is dual licenced under:
 
@@ -102,3 +146,6 @@ This project is dual licenced under:
 
 [Lobsters]: https://lobste.rs/
 [rust]: https://rustup.rs/
+[platforms]: https://forge.rust-lang.org/platform-support.html
+[issues]: https://todo.sr.ht/~wezm/lobsters
+[rustup]: https://www.rust-lang.org/tools/install
