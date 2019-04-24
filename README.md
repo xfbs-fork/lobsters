@@ -8,7 +8,7 @@ Lobsters Client and TUI in Rust
 
 * [Issue Tracker][issues]
 * [Download](https://git.sr.ht/~wezm/lobsters#download)
-* [Build](https://git.sr.ht/~wezm/lobsters#build)
+* [Build](https://git.sr.ht/~wezm/lobsters#building)
 * [Testing](https://git.sr.ht/~wezm/lobsters#testing)
 * [Contributing](https://git.sr.ht/~wezm/lobsters#contributing)
 
