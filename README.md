@@ -1,5 +1,5 @@
-Lobsters client for Rust
-========================
+Lobsters Client and TUI in Rust
+===============================
 
 <img src="https://git.sr.ht/~wezm/lobsters/blob/master/screenshot.png" alt="Screenshot of lobsters in a terminal window" width="568" />
 
