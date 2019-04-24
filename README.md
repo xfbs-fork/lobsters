@@ -4,10 +4,10 @@ Lobsters Client and TUI in Rust
 <img src="https://git.sr.ht/~wezm/lobsters/blob/master/screenshot.png" alt="Screenshot of lobsters in a terminal window" width="568" />
 
 * [Issue Tracker][issues]
-* [Download](#download)
-* [Build](#build)
-* [Testing](#testing)
-* [Contributing](#contributing)
+* [Download](https://git.sr.ht/~wezm/lobsters#download)
+* [Build](https://git.sr.ht/~wezm/lobsters#build)
+* [Testing](https://git.sr.ht/~wezm/lobsters#testing)
+* [Contributing](https://git.sr.ht/~wezm/lobsters#contributing)
 
 What
 ----
@@ -114,9 +114,9 @@ Contributing
 If you have code or patches you wish to contribute, the preferred mechanism is
 a git pull request. Push your changes to a git repository somewhere (Sourcehut,
 GitHub, GitLab, whatever). Ensure that contributions don't break [the
-tests](#testing) and add new ones when appropriate.
+tests](https://git.sr.ht/~wezm/lobsters#testing) and add new ones when appropriate.
 
-Assuming you have followed the [build steps](#build) above you would do the
+Assuming you have followed the [build steps](https://git.sr.ht/~wezm/lobsters#build) above you would do the
 following to push to your own fork on Sourcehut, change the git URL to match
 wherever your forked repo is:
 
