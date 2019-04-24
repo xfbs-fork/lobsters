@@ -1,6 +1,9 @@
 Lobsters Client and TUI in Rust
 ===============================
 
+[![crates.io](https://img.shields.io/crates/v/lobsters.svg)](https://crates.io/crates/lobsters)
+[![Documentation](https://docs.rs/lobsters/badge.svg)][crate-docs]
+
 <img src="https://git.sr.ht/~wezm/lobsters/blob/master/screenshot.png" alt="Screenshot of lobsters in a terminal window" width="568" />
 
 * [Issue Tracker][issues]
@@ -91,7 +94,7 @@ Build Status:
 ### Cross-Compiling
 
 There is a script that will build binaries for several platforms. You will need
-an `arm-linux-gnueabihf` and `musl` toolchain installed as well as those rustup
+an `arm-linux-gnueabihf` and `musl` toolchain installed as well as those [rustup]
 targets installed.
 
     ./build-all-platforms
@@ -146,6 +149,6 @@ This project is dual licenced under:
 
 [Lobsters]: https://lobste.rs/
 [rust]: https://rustup.rs/
-[platforms]: https://forge.rust-lang.org/platform-support.html
 [issues]: https://todo.sr.ht/~wezm/lobsters
 [rustup]: https://www.rust-lang.org/tools/install
+[crate-docs]: https://docs.rs/lobsters
