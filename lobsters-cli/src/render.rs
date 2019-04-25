@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::Write;
 
 use chrono::prelude::*;
@@ -132,6 +133,7 @@ pub fn render_lines<W: Write>(
 
     write!(screen, "{}", termion::cursor::Goto(1, 1))?;
 
+    // Limit the lines to the height and width of the terminal
     let scoped_lines = lines.iter().map(|line| {
         let cols_remaining = col_offset;
 
@@ -141,14 +143,15 @@ pub fn render_lines<W: Write>(
                 if span.is_empty() {
                     None
                 } else {
-                    Some(span)
+                    Some(Cow::Owned(span))
                 }
             } else {
-                Some(span.clone()) // FIXME: clone
+                Some(Cow::Borrowed(span))
             }
         })
     });
 
+    // Render the lines
     for (row, line) in scoped_lines.enumerate() {
         let mut col: usize = 0;
 
@@ -169,7 +172,7 @@ pub fn render_lines<W: Write>(
                 let truncated = span.truncate(truncate_cols);
                 write!(screen, "{}", truncated)?;
                 col += truncate_cols;
-                last_span = Some(truncated);
+                last_span = Some(Cow::Owned(truncated));
                 break;
             }
         }
