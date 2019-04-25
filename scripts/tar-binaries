@@ -13,7 +13,7 @@ VERSION="$1"
 package() {
   platform="$1"
 
-  tar zcf "target/lobsters-${VERSION}-${platform}.tar.gz" "target/${platform}/release/lobsters"
+  tar zcf "target/lobsters-${VERSION}-${platform}.tar.gz" -C "target/${platform}/release" lobsters
 }
 
 set -- \
