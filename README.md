@@ -91,7 +91,7 @@ Build Status:
 **Note:** You will need the [Rust compiler installed][rust].
 
     git clone https://git.sr.ht/~wezm/lobsters
-    cargo install --path lobsters
+    cargo install --path lobsters/lobsters-cli
 
 ### Cross-Compiling
 
