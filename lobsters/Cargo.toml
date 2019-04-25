@@ -1,8 +1,21 @@
 [package]
 name = "lobsters"
 version = "0.1.0"
+description = "Asynchronous http client for the lobste.rs website"
 authors = ["Wesley Moore <wes@wezm.net>"]
 edition = "2018"
+
+documentation = "https://docs.rs/lobsters"
+repository = "https://git.sr.ht/~wezm/lobsters"
+
+readme = "README.md"
+keywords = ["async", "lobsters", "client"]
+categories = ["web-programming::http-client"]
+
+license = "MIT OR Apache-2.0"
+
+#[badges]
+#sourcehut = { repository = "wezm/lobsters" }
 
 [dependencies]
 cookie_store = "0.5"
