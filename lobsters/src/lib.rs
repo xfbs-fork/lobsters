@@ -29,6 +29,11 @@
 //! the client so I built the UI. You can [read more about building the client and
 //! TUI on my blog][blog-post].
 //!
+//! How
+//! ---
+//!
+//! See [lobsters-cli] for an example of using this client.
+//!
 //! Known Limitations
 //! -----------------
 //!
@@ -89,6 +94,7 @@
 //! [Lobsters]: https://lobste.rs/
 //! [rust]: https://rustup.rs/
 //! [rustup]: https://www.rust-lang.org/tools/install
+//! [lobsters-cli]: https://git.sr.ht/~wezm/lobsters/tree/master/lobsters-cli
 
 pub mod client;
 pub mod error;
