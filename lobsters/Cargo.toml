@@ -8,7 +8,7 @@ edition = "2018"
 documentation = "https://docs.rs/lobsters"
 repository = "https://git.sr.ht/~wezm/lobsters"
 
-readme = "README.md"
+readme = "../README.md"
 keywords = ["async", "lobsters", "client"]
 categories = ["web-programming::http-client"]
 
