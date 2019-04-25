@@ -4,7 +4,7 @@ use termion::color::{self, AnsiValue, Color as TermionColor, Rgb};
 
 use lobsters::models;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Colour {
     Ansi(AnsiValue),
     Rgb(Rgb),
