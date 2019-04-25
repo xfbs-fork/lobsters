@@ -39,7 +39,9 @@
 //!
 //! Run the test suite:
 //!
-//!     cargo test
+//! ```shell
+//! cargo test
+//! ```
 //!
 //! Contributing
 //! ------------
@@ -53,14 +55,18 @@
 //! above you would do the following to push to your own fork on Sourcehut, change
 //! the git URL to match wherever your forked repo is:
 //!
-//!     git remote rename origin upstream
-//!     git remote add origin git@git.sr.ht:~yourname/lobsters
-//!     git push -u origin master
+//! ```shell
+//! git remote rename origin upstream
+//! git remote add origin git@git.sr.ht:~yourname/lobsters
+//! git push -u origin master
+//! ```
 //!
 //! Then generate the pull request:
 //!
-//!     git fetch upstream master
-//!     git request-pull -p upstream/master origin
+//! ```shell
+//! git fetch upstream master
+//! git request-pull -p upstream/master origin
+//! ```
 //!
 //! And copy-paste the result into a plain-text email to wes@wezm.net.
 //!
