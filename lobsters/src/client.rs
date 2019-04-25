@@ -98,7 +98,7 @@ impl Client {
                         res.headers()
                             .get(LOCATION)
                             .and_then(|header| header.to_str().ok())
-                            .map(|s| s.to_string())
+                            .map(std::string::ToString::to_string)
                     } else {
                         None
                     };
@@ -172,7 +172,7 @@ impl Client {
                         .headers()
                         .get(LOCATION)
                         .and_then(|header| header.to_str().ok())
-                        .map(|s| s.to_string());
+                        .map(std::string::ToString::to_string);
                     res.into_body()
                         .concat2()
                         .map_err(Error::from)
@@ -241,7 +241,7 @@ impl Client {
             .ok()
             .and_then(|input| {
                 let attrs = input.attributes.borrow();
-                attrs.get("content").map(|content| content.to_string())
+                attrs.get("content").map(std::string::ToString::to_string)
             })
             .ok_or_else(|| Error::MissingHtmlElement)
     }

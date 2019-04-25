@@ -127,19 +127,7 @@ pub fn render_lines<W: Write>(
     screen: &mut RawTerminal<W>,
     col_offset: usize,
 ) -> Result<(), Error> {
-    let (width, height) = util::as_usize(termion::terminal_size()?);
-    let mut log = std::fs::File::create("render.log")?;
-    write!(log, "Terminal dimensions: {:?}\n", (width, height))?;
-    write!(
-        log,
-        "Line 1 {}\n",
-        lines[0]
-            .iter()
-            .map(|f| f.to_string())
-            .collect::<Vec<_>>()
-            .join(" ")
-    )?;
-
+    let (width, _height) = util::as_usize(termion::terminal_size()?);
     let empty_line = vec![0x20; width];
 
     write!(screen, "{}", termion::cursor::Goto(1, 1))?;
@@ -174,14 +162,12 @@ pub fn render_lines<W: Write>(
 
             if col + span_cols < width {
                 write!(screen, "{}", span)?;
-                write!(log, "{}: {}\n", col, span)?;
                 col += span_cols;
                 last_span = Some(span);
             } else {
                 let truncate_cols = 1 + width - col;
                 let truncated = span.truncate(truncate_cols);
                 write!(screen, "{}", truncated)?;
-                write!(log, "{} (t): {}\n", col, truncated)?;
                 col += truncate_cols;
                 last_span = Some(truncated);
                 break;
@@ -192,7 +178,6 @@ pub fn render_lines<W: Write>(
         // This is done in favor of ClearAll to reduce flicker
         if col < width {
             if let Some(bg) = last_span.and_then(|span| span.get_bg()) {
-                // TODO: Make Fancy store text with a Cow so slice can be passed to it
                 // NOTE(unwrap): Safe because empty_line is all spaces
                 let blank = String::from_utf8(empty_line[0..width - col].to_vec()).unwrap();
                 let blank_with_bg = Fancy::new(blank).bg(bg);

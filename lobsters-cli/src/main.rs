@@ -178,9 +178,8 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
     println!(" done.");
 
     let (_width, height) = util::as_usize(termion::terminal_size()?);
-    let height = usize::from(height);
 
-    if stories.len() < 1 {
+    if stories.is_empty() {
         println!("There are no stories to show.");
         return Ok(());
     }

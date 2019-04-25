@@ -21,7 +21,7 @@ pub struct TagMap {
 
 impl State {
     pub fn new(stories: Vec<Story>, tags: Vec<Tag>) -> Self {
-        assert!(stories.len() > 0, "no stories");
+        assert!(!stories.is_empty(), "no stories");
 
         let tag_map = TagMap::new(tags);
         State {

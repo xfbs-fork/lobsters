@@ -5,7 +5,7 @@ use termion::style::{Bold, Italic, NoBold, NoItalic, NoUnderline, Underline};
 
 use crate::theme::Colour;
 
-/// Fancy text (styled)
+/// Fancy (styled) text
 ///
 /// Example:
 ///
