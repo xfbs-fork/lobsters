@@ -14,6 +14,8 @@ for platform do
 done
 
 # Native platforms
+# rustup target add arm-unknown-linux-gnueabihf
+# rustup target add x86_64-unknown-linux-musl
 
 set -- \
 arm-unknown-linux-gnueabihf \

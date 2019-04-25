@@ -59,14 +59,16 @@ Download
 `lobsters` is a single binary available for a handful of platforms. To download
 the latest release do the following:
 
-* FreeBSD x86_64:
+* FreeBSD 12.0 x86_64:
   * `curl -L https://releases.wezm.net/lobsters/lobsters-0.1.0-x86_64-unknown-freebsd.tar.gz | tar zxf -`
 * Linux x86_64:
   * `curl -L https://releases.wezm.net/lobsters/lobsters-0.1.0-x86_64-unknown-linux-musl.tar.gz | tar zxf -`
 * macOS x86_64:
   * `curl -L https://releases.wezm.net/lobsters/lobsters-0.1.0-x86_64-apple-darwin.tar.gz | tar zxf -`
-* NetBSD x86_64:
+* NetBSD 8.0 x86_64:
   * `curl -L https://releases.wezm.net/lobsters/lobsters-0.1.0-x86_64-unknown-netbsd.tar.gz | tar zxf -`
+* OpenBSD 6.5 x86_64:
+  * `curl -L https://releases.wezm.net/lobsters/lobsters-0.1.0-x86_64-unknown-openbsd.tar.gz | tar zxf -`
 * Raspberry Pi:
   * `curl -L https://releases.wezm.net/lobsters/lobsters-0.1.0-arm-unknown-linux-gnueabihf.tar.gz | tar zxf -`
 
