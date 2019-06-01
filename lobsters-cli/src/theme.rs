@@ -29,6 +29,7 @@ pub mod themes {
     pub use super::LOBSTERS_GREY;
     pub use super::LOBSTERS_MONO;
     pub use super::LOBSTERS_TRUE;
+    pub use super::LOBSTERS_SIMPLE;
 }
 
 pub static LOBSTERS_MONO: Theme = Theme {
@@ -53,6 +54,18 @@ pub static LOBSTERS_GREY: Theme = Theme {
     domain: Colour::Ansi(AnsiValue(245)),
     byline: Colour::Ansi(AnsiValue(250)),
     cursor: Colour::Ansi(AnsiValue(237)),
+};
+
+pub static LOBSTERS_SIMPLE: Theme = Theme {
+    score: Colour::Ansi(AnsiValue(7)),
+    ask_tag: Colour::Ansi(AnsiValue(1)),
+    media_tag: Colour::Ansi(AnsiValue(1)),
+    meta_tag: Colour::Ansi(AnsiValue(1)),
+    normal_tag: Colour::Ansi(AnsiValue(11)),
+    title: Colour::Ansi(AnsiValue(12)),
+    domain: Colour::Ansi(AnsiValue(4)),
+    byline: Colour::Ansi(AnsiValue(7)),
+    cursor: Colour::Ansi(AnsiValue(8)),
 };
 
 pub static LOBSTERS_256: Theme = Theme {

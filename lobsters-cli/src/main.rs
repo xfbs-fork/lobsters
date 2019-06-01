@@ -75,6 +75,7 @@ enum UiTheme {
     Color256,
     Mono,
     TrueColor,
+    Simple,
 }
 
 type CommandResult = Result<(), Error>;
@@ -200,6 +201,7 @@ fn stories(rt: &mut Runtime, client: Client, options: Stories) -> CommandResult 
             UiTheme::TrueColor => &LOBSTERS_TRUE,
             UiTheme::Mono => &LOBSTERS_MONO,
             UiTheme::Grey => &LOBSTERS_GREY,
+            UiTheme::Simple => &LOBSTERS_SIMPLE,
         };
 
         // Render initial UI
@@ -264,6 +266,7 @@ impl FromStr for UiTheme {
             "256" => Ok(UiTheme::Color256),
             "mono" => Ok(UiTheme::Mono),
             "grey" | "gray" => Ok(UiTheme::Grey),
+            "simple" => Ok(UiTheme::Simple),
             _ => Err(ParseThemeError(theme.to_string())),
         }
     }
