@@ -39,7 +39,7 @@ pub fn render_stories(state: &mut State, theme: &Theme, height: usize) -> Result
             .filter_map(|tag| state.get_tag(&tag))
             .map(|tag| Fancy::new(format!(" {}", tag.tag)).fg(theme.tag_colour(tag)));
         let domain = Fancy::new(
-            url.and_then(|url| url.domain().map(|d| format!(" {}", d)))
+            url.and_then(|url| url.domain().map(|d| format!("{}", d)))
                 .unwrap_or_else(|| "".to_string()),
         )
         .fg(theme.domain)
@@ -59,6 +59,7 @@ pub fn render_stories(state: &mut State, theme: &Theme, height: usize) -> Result
         line1.push(score);
         line1.push(title);
         line1.extend(tags);
+        line1.push(Fancy::new(" "));
         line1.push(domain);
 
         // Meta line
