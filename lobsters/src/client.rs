@@ -298,7 +298,7 @@ mod tests {
         let html = r#"<html><body><form><input name="authenticity_token" value="testtest"></form></body></html>"#;
         match Client::extract_authenticity_token_from_html(html) {
             Err(_) => assert!(false),
-            Ok(ref s) => assert_eq!(s, "testtest")
+            Ok(ref s) => assert_eq!(s, "testtest"),
         }
     }
 
@@ -308,7 +308,7 @@ mod tests {
 
         match Client::extract_authenticity_token_from_html(html) {
             Err(Error::MissingAuthenticityToken) => assert!(true),
-            other => panic!("Expected Error::MissingHtmlElement but got {:?}", other)
+            other => panic!("Expected Error::MissingHtmlElement but got {:?}", other),
         }
-    }                       
+    }
 }
