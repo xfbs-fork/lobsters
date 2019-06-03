@@ -301,4 +301,14 @@ mod tests {
             Ok(ref s) => assert_eq!(s, "testtest")
         }
     }
+
+    #[test]
+    fn extract_authenticity_token_from_html_fail() {
+        let html = r#"<html><body><h1>Title</h1></body></html>"#;
+
+        match Client::extract_authenticity_token_from_html(html) {
+            Err(Error::MissingAuthenticityToken) => assert!(true),
+            other => panic!("Expected Error::MissingHtmlElement but got {:?}", other)
+        }
+    }                       
 }
