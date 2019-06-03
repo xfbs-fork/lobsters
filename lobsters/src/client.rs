@@ -245,6 +245,17 @@ impl Client {
             })
             .ok_or_else(|| Error::MissingHtmlElement)
     }
+
+    fn extract_authenticity_token_from_html(body: &str) -> Result<String, Error> {
+        let html = kuchiki::parse_html().one(body);
+        html.select_first("input[name='authenticity_token']")
+            .ok()
+            .and_then(|input| {
+                let attrs = input.attributes.borrow();
+                attrs.get("value").map(std::string::ToString::to_string)
+            })
+            .ok_or_else(|| Error::MissingAuthenticityToken)
+    }
 }
 
 impl Page {
@@ -279,6 +290,15 @@ mod tests {
         match Client::extract_csrf_token_from_html(html) {
             Err(Error::MissingHtmlElement) => (),
             other => panic!("Expected Error::MissingHtmlElement got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn extract_authenticity_token_from_html_success() {
+        let html = r#"<html><body><form><input name="authenticity_token" value="testtest"></form></body></html>"#;
+        match Client::extract_authenticity_token_from_html(html) {
+            Err(_) => assert!(false),
+            Ok(ref s) => assert_eq!(s, "testtest")
         }
     }
 }

@@ -113,6 +113,7 @@ fn main() {
         Err(Error::Lobsters(lobsters::Error::MissingHtmlElement)) => {
             eprintln!("Error: Tried to find a HTML element that did not exist on the page")
         }
+        Err(Error::Lobsters(lobsters::Error::MissingAuthenticityToken)) => eprintln!("Error: missing 2fa authenticity token."),
         Err(Error::Lobsters(lobsters::Error::Authorisation)) => eprintln!("Error: Not authorised"),
         Err(Error::InvalidDate(err)) => eprintln!("Unable to parse date: {:?}", err),
         Err(Error::NotATty) => {
