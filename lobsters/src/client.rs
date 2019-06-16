@@ -75,13 +75,9 @@ impl Client {
         let get_token = self.http.get("login").and_then(Self::extract_csrf_token);
 
         // https://github.com/lobsters/lobsters/blob/9711868670e9c638a55fc94ab8ae48002d31ad06/app/controllers/login_controller.rb#L70
-        let success_url = self.http.base_url().join("lobsters-login-success");
-        let success_url = move |token| {
-            success_url
-                .map_err(Error::from)
-                .into_future()
-                .map(|url| (url, token))
-        };
+        let success_url = self.http.base_url().join("lobsters-login-success")
+            .map_err(Error::from)
+            .into_future();
 
         let twofa_url = self.http
             .base_url()
@@ -90,7 +86,7 @@ impl Client {
             .unwrap();
 
         let client = self.http.clone();
-        let login = move |(success_url, token): (Url, _)| {
+        let login = move |(token, success_url): (_, Url)| {
             let params = [
                 ("email", username_or_email),
                 ("password", password),
@@ -126,7 +122,7 @@ impl Client {
                 })
         };
 
-        get_token.and_then(success_url).and_then(login)
+        get_token.join(success_url).and_then(login)
     }
 
     fn handle_2fa() -> Error {
