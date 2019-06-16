@@ -83,6 +83,11 @@ impl Client {
                 .map(|url| (url, token))
         };
 
+        let twofa_url = self.http
+            .base_url()
+            .join("login/2fa")
+            .map_err(Error::from);
+
         let client = self.http.clone();
         let login = move |(success_url, token): (Url, _)| {
             let params = [
@@ -112,14 +117,10 @@ impl Client {
                     debug!("login body = {}", b);
 
                     // Success is deemed to be if the response redirects to the success_url
-                    if location
-                        .and_then(|url| url.parse().ok())
-                        .map(move |url: Url| url == success_url)
-                        .unwrap_or(false)
-                    {
-                        futures::future::ok(())
-                    } else {
-                        futures::future::err(Error::Authorisation)
+                    match location.and_then(|url| url.parse().ok()) as Option<Url> {
+                        twofa_url => futures::future::err(Error::Needs2FA),
+                        Some(success_url) => futures::future::ok(()),
+                        _ => futures::future::err(Error::Authorisation),
                     }
                 })
         };

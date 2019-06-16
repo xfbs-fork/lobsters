@@ -121,6 +121,7 @@ fn main() {
         Err(Error::NotATty) => {
             eprintln!("Error: This program needs a tty (you can't pipe or redirect its output)")
         }
+        Err(e) => eprintln!("Unknown error occured: {:?}", e),
     }
 
     if result.is_err() {
