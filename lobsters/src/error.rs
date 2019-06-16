@@ -24,7 +24,7 @@ pub enum Error {
     /// The request was not authorised or login attemp failed
     Authorisation,
     /// Needs 2fa token
-    Needs2FA,
+    Needs2FA(String),
 }
 
 impl From<reqwest::Error> for Error {

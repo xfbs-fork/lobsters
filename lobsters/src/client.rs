@@ -86,7 +86,8 @@ impl Client {
         let twofa_url = self.http
             .base_url()
             .join("login/2fa")
-            .map_err(Error::from);
+            .ok()
+            .unwrap();
 
         let client = self.http.clone();
         let login = move |(success_url, token): (Url, _)| {
@@ -112,20 +113,24 @@ impl Client {
                         .map_err(Error::from)
                         .map(|body| (location, body))
                 })
-                .and_then(|(location, body)| {
+                .and_then(move |(location, body)| {
                     let b = std::str::from_utf8(&body).unwrap();
                     debug!("login body = {}", b);
 
                     // Success is deemed to be if the response redirects to the success_url
                     match location.and_then(|url| url.parse().ok()) as Option<Url> {
-                        twofa_url => futures::future::err(Error::Needs2FA),
-                        Some(success_url) => futures::future::ok(()),
+                        Some(ref url) if url == &twofa_url => futures::future::err(Self::handle_2fa()),
+                        Some(ref url) if url == &success_url => futures::future::ok(()),
                         _ => futures::future::err(Error::Authorisation),
                     }
                 })
         };
 
         get_token.and_then(success_url).and_then(login)
+    }
+
+    fn handle_2fa() -> Error {
+        Error::Needs2FA(String::new())
     }
 
     /// Retrieve the front page stories, newest first
@@ -184,7 +189,6 @@ impl Client {
                     debug!("body = {}", b);
 
                     // TODO: Determine success
-
                     futures::future::ok(location)
                 })
         };
